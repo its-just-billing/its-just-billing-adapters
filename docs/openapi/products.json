@@ -7,6 +7,37 @@
   },
   "components": {
     "schemas": {
+      "TaxCategory": {
+        "type": "string",
+        "enum": [
+          "digital_goods",
+          "ebooks",
+          "implementation_services",
+          "professional_services",
+          "saas",
+          "software_programming_services",
+          "standard",
+          "training_services",
+          "website_hosting"
+        ],
+        "description": "Normalized tax category. The exact provider tax-code translation is an adapter detail."
+      },
+      "TaxCategoryOutput": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TaxCategory"
+          },
+          {
+            "type": "string",
+            "enum": [
+              "other"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
       "Metadata": {
         "type": "object",
         "additionalProperties": {
@@ -34,6 +65,9 @@
           "active": {
             "type": "boolean"
           },
+          "taxCategory": {
+            "$ref": "#/components/schemas/TaxCategoryOutput"
+          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           },
@@ -49,11 +83,12 @@
           "name",
           "description",
           "active",
+          "taxCategory",
           "metadata",
           "createdAt",
           "updatedAt"
         ],
-        "description": "Normalized product record. Prices are NOT embedded; query them through the `prices` domain."
+        "description": "Normalized product record. Prices are NOT embedded; query them through the `prices` domain. `taxCategory` is `TaxCategory` for SDK-managed products, `\"other\"` for dashboard-created products whose provider-native code does not map to the normalized enum, or `null` when no tax category is set."
       },
       "ProductsPage": {
         "type": "object",
@@ -133,14 +168,18 @@
               "null"
             ]
           },
+          "taxCategory": {
+            "$ref": "#/components/schemas/TaxCategory"
+          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           }
         },
         "required": [
-          "name"
+          "name",
+          "taxCategory"
         ],
-        "description": "Newly created products are always active. To soft-delete, call `deactivate`; to restore, call `activate`."
+        "description": "Newly created products are always active. `taxCategory` is required — both Stripe and Paddle benefit from an explicit tax category at create time. To soft-delete, call `deactivate`; to restore, call `activate`."
       },
       "ProductsUpdateInput": {
         "type": "object",

@@ -1,5 +1,6 @@
 import { describe } from 'vitest';
 import type { ProviderTestHarness } from '../../harness.js';
+import { registerCapabilitiesAutomatedSuite } from './capabilities.js';
 import { registerCheckoutAutomatedSuite } from './checkout.js';
 import { registerCustomersAutomatedSuite } from './customers.js';
 import { registerDiscountsAutomatedSuite } from './discounts.js';
@@ -21,6 +22,7 @@ type HarnessFactory = () => ProviderTestHarness | Promise<ProviderTestHarness>;
  */
 export function registerAutomatedSuite(label: string, factory: HarnessFactory): void {
   describe(`[automated] ${label}`, () => {
+    registerCapabilitiesAutomatedSuite(label, factory);
     registerCustomersAutomatedSuite(label, factory);
     registerProductsAutomatedSuite(label, factory);
     registerPricesAutomatedSuite(label, factory);

@@ -10,3 +10,4 @@ export * from './webhook-signature.js';
 export * from './normalization.js';
 export * from './metadata-collision.js';
 export * from './unmanaged-state.js';
+export * from './not-supported.js';

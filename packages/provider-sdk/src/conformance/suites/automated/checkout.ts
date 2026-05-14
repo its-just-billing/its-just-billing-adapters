@@ -125,7 +125,10 @@ export function registerCheckoutAutomatedSuite(
       harness = await factory();
       provider = harness.provider;
 
-      fixtureProduct = await provider.products.create({ name: 'fixture-checkout' });
+      fixtureProduct = await provider.products.create({
+        name: 'fixture-checkout',
+        taxCategory: 'saas',
+      });
       createdProductIds.add(fixtureProduct.id);
 
       fixturePrice = await provider.prices.create({

@@ -167,58 +167,75 @@ await provider.webhooks.deleteEndpoint({ id });           // hard delete
 
 ---
 
-## The big rule: manage lifecycle through the SDK
+## Dashboard usage: what works, what breaks
 
-> **The SDK can only guarantee normalized behavior for state it manages.**
+The SDK reads the world as-is. Dashboard- and external-tool-created resources are fully supported as long as they only exercise features inside the normalized subset. Specifically:
 
-Several parts of the contract — subscription change scheduling, price quantity constraints, webhook event-type sets, discount duration semantics — are normalized by **encoding intent into adapter-managed metadata** (the `__provider_*` reserved namespace). When you bypass the SDK and create those things in the provider dashboard or via the raw provider SDK, the markers aren't there, and the SDK can't faithfully reflect your intent across providers.
+| Resource / action                                                              | SDK behavior                                                                              |
+|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| Products created in the provider dashboard                                     | ✅ Read and write fine. Tax code maps to the normalized `TaxCategory` enum, or `'other'` if outside it (raw code preserved in `__provider_tax_category_raw`). |
+| Prices created in the dashboard                                                | ✅ Read and write fine. Quantity behavior is **provider-native** when the provider supports it (Paddle reads its own quantity fields) and **permissive-default `{ min: 1, max: 999_999 }`** when it doesn't (Stripe, without managed metadata). |
+| Customers created in the dashboard                                             | ✅ Fully supported.                                                                       |
+| Subscriptions created via dashboard checkout / hosted checkout                 | ✅ Subscriptions are inherently created by buyers completing checkout. Read/cancel/change as normal. |
+| Webhook endpoints created in the dashboard, subscribing to all provider events | ✅ Fine. The SDK silently filters non-normalized event types on read and verify. Endpoints listed via `listEndpoints` only surface event types in the normalized enum. |
+| Discounts/coupons created in the dashboard                                     | ✅ Fine if configured within the normalized lifecycle subset (benefit shape, duration kinds, restrictedTo). |
 
-Concretely:
-
-- **Price quantity constraints (`{ min, max }`)** are stored in `__provider_quantity_min` / `__provider_quantity_max` reserved metadata. SDK-created prices use the kind-based default (`{1,1}` recurring, `{min:1}` one-time) unless the caller overrides at create time, and the constraint is enforced on subsequent reads and on checkout. Prices created **outside the SDK** carry no managed metadata, so the SDK can't infer your intent — reads fall back to a permissive `{ min: 1, max: 999_999 }` (Stripe's documented per-line-item maximum). That means the SDK won't pre-reject quantities the provider would otherwise accept, but it also can't enforce any tighter constraint you set up in the dashboard.
-- **Subscription pending changes** rely on the adapter to recognize its own scheduling primitives. If you create a Stripe subscription schedule by hand, the SDK can't decide which phases are part of a "change at period end" the contract should surface vs. arbitrary multi-phase billing logic it doesn't model.
-- **Discount durations** like `{ kind: 'repeating', months: N }` round-trip through provider-native fields when the adapter creates them, but a dashboard-created Stripe coupon may not round-trip identically if its configuration is outside the normalized subset.
-
-### What the SDK does about it
-
-When an adapter reads a resource and detects this drift — e.g. a subscription has phases the SDK didn't author, or a price's quantity constraint metadata is corrupt or absent — it throws **`ProviderUnmanagedStateError`** (`status: 422`, `code: 'unmanaged_state'`). The error carries:
-
-```ts
-{
-  field: string;          // e.g. "subscription.schedule" or "price.quantity"
-  expected?: string;      // what the SDK expected to find (a marker / managed key)
-  found?: unknown;        // what was actually present
-}
-```
+The **one** thing that breaks normalization: **subscription schedules with non-normalized phases**. The contract's `subscriptions.change({ when: 'at_period_end' })` uses the provider's scheduling primitive in a specific way. If you hand-author a Stripe subscription schedule with multiple custom phases, the SDK can't safely surface that through `pendingChange`. On read, the adapter throws `ProviderUnmanagedStateError`.
 
 ```ts
 import { ProviderUnmanagedStateError } from '@its-just-billing/provider-sdk';
 
 try {
   const sub = await provider.subscriptions.get({ id });
-  // ...
 } catch (err) {
   if (err instanceof ProviderUnmanagedStateError) {
-    logger.warn('Unmanaged provider state detected', {
+    logger.warn('Unmanaged provider state', {
       field: err.field, expected: err.expected, found: err.found,
     });
-    // Fall back to raw provider client; do not assume cross-provider normalization
-    const stripeSub = await (provider.raw as Stripe).subscriptions.retrieve(id);
-    // ...
+    // Fall back to the raw provider client
+    const native = await (provider.raw as Stripe).subscriptions.retrieve(id);
   } else {
     throw err;
   }
 }
 ```
 
-### The SLA
+### Cross-provider capability gaps
 
-The SDK is reliable when:
+Some normalized values aren't supported on every provider. For example, a Stripe-only currency won't work on Paddle. The SDK exposes this through two surfaces:
 
-1. All write operations on a resource go through the SDK.
-2. Provider dashboard usage is limited to **read-only operations**, **simple configuration** (display name, branding, billing email), and the **portal settings recommended below**.
+**Pre-flight via `capabilities`** — typed sets exposed on each provider:
 
-If you need provider-specific behavior the SDK doesn't model, use `provider.raw` directly — but understand that resources touched that way may surface `ProviderUnmanagedStateError` on the next normalized read.
+```ts
+if (provider.capabilities.taxCategories.has('saas')) {
+  await provider.products.create({ name: 'Pro plan', taxCategory: 'saas' });
+}
+
+if (provider.capabilities.currencies.has('usd')) {
+  await provider.prices.create({ ..., currency: 'usd', kind: 'recurring', unitAmount: 1999, interval: 'month' });
+}
+```
+
+**Defense at call time via `ProviderNotSupportedError`** — fires when a caller skips the pre-flight check:
+
+```ts
+import { ProviderNotSupportedError } from '@its-just-billing/provider-sdk';
+
+try {
+  await paddle.prices.create({ ..., currency: 'xyz', kind: 'one_time', unitAmount: 1000 });
+} catch (err) {
+  if (err instanceof ProviderNotSupportedError) {
+    // err.feature === 'currency', err.value === 'xyz'
+    // Route to a different provider, or substitute.
+  }
+}
+```
+
+The `capabilities` surface is intentionally narrow — currently `taxCategories` and `currencies`. New axes go in only when a real cross-provider gap exists.
+
+### When to use `provider.raw`
+
+For provider-specific features the SDK doesn't model (Stripe Tax, Paddle Retain, full Stripe `txcd_*` taxonomy, etc.), `provider.raw` gives you the underlying provider client. Resources touched through `raw` may surface `ProviderUnmanagedStateError` on the next normalized read if they exercise features outside the normalized subset.
 
 ---
 
@@ -314,6 +331,7 @@ All errors extend `ProviderError` and carry `status`, `code`, `message`, optiona
 | `ProviderConstraintError`        | 422    | `constraint`        | Provider rejected a structurally valid request.               |
 | `MetadataCollisionError`         | 422    | `metadata_collision`| Caller metadata used a reserved `__provider_*` key.           |
 | `ProviderUnmanagedStateError`    | 422    | `unmanaged_state`   | Adapter detected state created outside the SDK's lifecycle.   |
+| `ProviderNotSupportedError`      | 422    | `not_supported`     | Caller passed a value the active provider can't honor (see `capabilities`). |
 | `ProviderRateLimitError`         | 429    | `rate_limit`        | Provider rate-limited; may carry `retryAfterSeconds`.         |
 | `ProviderNormalizationError`     | 502    | `normalization`     | Provider response can't be mapped to the contract.            |
 | `ProviderUnavailableError`       | 5xx    | `unavailable`       | Provider 5xx or transport failure.                            |

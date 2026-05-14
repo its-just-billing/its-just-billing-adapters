@@ -106,7 +106,7 @@ export function registerPurchasesSelfSetupSuite(
     const provider = harness.provider;
 
     const customer = await provider.customers.create({});
-    const product = await provider.products.create({ name: 'fixture' });
+    const product = await provider.products.create({ name: 'fixture', taxCategory: 'saas' });
     const price = await provider.prices.create({
       productId: product.id,
       currency: 'usd',

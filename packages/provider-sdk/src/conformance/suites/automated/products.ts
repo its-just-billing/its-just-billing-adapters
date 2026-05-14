@@ -39,6 +39,24 @@ export function registerProductsAutomatedSuite(
     }
   }
 
+  /**
+   * The full set of allowed values for the read-side `taxCategory` field on
+   * a `ProviderProduct`. Mirrors the union of `TaxCategory` ∪ `'other'` ∪
+   * `null` (see `TaxCategoryOutputSchema` in the SDK).
+   */
+  const TAX_CATEGORY_OUTPUT_VALUES = new Set<string>([
+    'digital_goods',
+    'ebooks',
+    'implementation_services',
+    'professional_services',
+    'saas',
+    'software_programming_services',
+    'standard',
+    'training_services',
+    'website_hosting',
+    'other',
+  ]);
+
   function expectIsProduct(p: unknown): asserts p is ProviderProduct {
     expect(isPlainObject(p)).toBe(true);
     const rec = p as Record<string, unknown>;
@@ -51,6 +69,14 @@ export function registerProductsAutomatedSuite(
 
     expect(rec.description === null || typeof rec.description === 'string').toBe(true);
     expect(typeof rec.active).toBe('boolean');
+
+    // taxCategory must be present (own key) and either null or one of the
+    // 9 TaxCategory enum strings OR the read-side fallback 'other'.
+    expect(Object.prototype.hasOwnProperty.call(rec, 'taxCategory')).toBe(true);
+    const tc = rec.taxCategory;
+    expect(tc === null || (typeof tc === 'string' && TAX_CATEGORY_OUTPUT_VALUES.has(tc))).toBe(
+      true,
+    );
 
     expect(isPlainObject(rec.metadata)).toBe(true);
     for (const [k, v] of Object.entries(rec.metadata as Record<string, unknown>)) {
@@ -106,7 +132,7 @@ export function registerProductsAutomatedSuite(
     describe('products.create', () => {
       it('returns a ProviderProduct with sensible defaults for create({name})', async () => {
         const name = uniqueName();
-        const p = await provider.products.create({ name });
+        const p = await provider.products.create({ name, taxCategory: 'saas' });
         track(p.id);
         expectIsProduct(p);
         expect(p.name).toBe(name);
@@ -123,6 +149,7 @@ export function registerProductsAutomatedSuite(
         const metadata = { plan: 'pro', source: 'signup' };
         const p = await provider.products.create({
           name,
+          taxCategory: 'saas',
           description,
           metadata,
         });
@@ -139,7 +166,11 @@ export function registerProductsAutomatedSuite(
         const name = uniqueName();
         // `active` is not part of the create input schema. Zod strips unknown
         // keys by default, so the call succeeds and the resource is active.
-        const p = await provider.products.create({ name, active: false } as any);
+        const p = await provider.products.create({
+          name,
+          taxCategory: 'saas',
+          active: false,
+        } as any);
         track(p.id);
         expectIsProduct(p);
         expect(p.active).toBe(true);
@@ -147,7 +178,11 @@ export function registerProductsAutomatedSuite(
 
       it('accepts null description explicitly', async () => {
         const name = uniqueName();
-        const p = await provider.products.create({ name, description: null });
+        const p = await provider.products.create({
+          name,
+          taxCategory: 'saas',
+          description: null,
+        });
         track(p.id);
         expectIsProduct(p);
         expect(p.description).toBeNull();
@@ -155,7 +190,11 @@ export function registerProductsAutomatedSuite(
 
       it('accepts empty-string description', async () => {
         const name = uniqueName();
-        const p = await provider.products.create({ name, description: '' });
+        const p = await provider.products.create({
+          name,
+          taxCategory: 'saas',
+          description: '',
+        });
         track(p.id);
         expectIsProduct(p);
         expect(p.description).toBe('');
@@ -163,11 +202,32 @@ export function registerProductsAutomatedSuite(
 
       it('two creates with the same name produce distinct ids', async () => {
         const name = uniqueName();
-        const a = await provider.products.create({ name });
-        const b = await provider.products.create({ name });
+        const a = await provider.products.create({ name, taxCategory: 'saas' });
+        const b = await provider.products.create({ name, taxCategory: 'saas' });
         track(a.id);
         track(b.id);
         expect(a.id).not.toBe(b.id);
+      });
+
+      // ---- happy path: taxCategory round-trip ----
+      it('round-trips taxCategory:"saas" on create and via subsequent get', async () => {
+        const name = uniqueName();
+        const created = await provider.products.create({ name, taxCategory: 'saas' });
+        track(created.id);
+        expectIsProduct(created);
+        expect(created.taxCategory).toBe('saas');
+        const got = await provider.products.get({ id: created.id });
+        expect(got).not.toBeNull();
+        expectIsProduct(got);
+        expect((got as ProviderProduct).taxCategory).toBe('saas');
+      });
+
+      it('round-trips a non-default taxCategory ("ebooks") on create', async () => {
+        const name = uniqueName();
+        const created = await provider.products.create({ name, taxCategory: 'ebooks' });
+        track(created.id);
+        expectIsProduct(created);
+        expect(created.taxCategory).toBe('ebooks');
       });
 
       // ---- validation: input shape ----
@@ -203,7 +263,11 @@ export function registerProductsAutomatedSuite(
         ['boolean', false],
       ])('rejects invalid description (%s)', async (_label, value) => {
         await expect(
-          provider.products.create({ name: uniqueName(), description: value as any }),
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'saas',
+            description: value as any,
+          }),
         ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
@@ -214,7 +278,11 @@ export function registerProductsAutomatedSuite(
         ['null', null],
       ])('rejects non-object metadata (%s)', async (_label, value) => {
         await expect(
-          provider.products.create({ name: uniqueName(), metadata: value as any }),
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'saas',
+            metadata: value as any,
+          }),
         ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
@@ -224,7 +292,11 @@ export function registerProductsAutomatedSuite(
         ['null value', { key: null as any }],
       ])('rejects metadata with non-string values (%s)', async (_label, metadata) => {
         await expect(
-          provider.products.create({ name: uniqueName(), metadata: metadata as any }),
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'saas',
+            metadata: metadata as any,
+          }),
         ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
@@ -232,6 +304,7 @@ export function registerProductsAutomatedSuite(
         const err = await provider.products
           .create({
             name: uniqueName(),
+            taxCategory: 'saas',
             metadata: { __provider_secret: 'x' } as any,
           })
           .then(
@@ -248,6 +321,7 @@ export function registerProductsAutomatedSuite(
         const err = await provider.products
           .create({
             name: uniqueName(),
+            taxCategory: 'saas',
             metadata: { plan: 'gold', __provider_internal: 'x' } as any,
           })
           .then(
@@ -257,6 +331,40 @@ export function registerProductsAutomatedSuite(
         expect(err).toBeInstanceOf(MetadataCollisionError);
         expect((err as MetadataCollisionError).reservedKeys).toContain('__provider_internal');
       });
+
+      // ---- validation: taxCategory ----
+      it('rejects missing taxCategory (400)', async () => {
+        await expect(
+          provider.products.create({ name: uniqueName() } as any),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
+
+      it('rejects invalid string taxCategory (400)', async () => {
+        await expect(
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'invalid_value' as any,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
+
+      it('rejects number taxCategory (400)', async () => {
+        await expect(
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 42 as any,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
+
+      it('rejects null taxCategory (400)', async () => {
+        await expect(
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: null as any,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
     });
 
     // -------------------------------------------------------------------------
@@ -264,7 +372,7 @@ export function registerProductsAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('products.get', () => {
       it('returns a deep-equal record for an existing id', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         const got = await provider.products.get({ id: p.id });
         expect(got).toEqual(p);
@@ -316,8 +424,8 @@ export function registerProductsAutomatedSuite(
       });
 
       it('list({active:true}) includes both A and B after creating them', async () => {
-        const a = await provider.products.create({ name: uniqueName() });
-        const b = await provider.products.create({ name: uniqueName() });
+        const a = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
+        const b = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(a.id);
         track(b.id);
         const out = await provider.products.list({ active: true, limit: 100 });
@@ -332,7 +440,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('after deactivate, list({active:false}) includes A and list({active:true}) excludes A', async () => {
-        const a = await provider.products.create({ name: uniqueName() });
+        const a = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(a.id);
         const archived = await provider.products.deactivate({ id: a.id });
         expect(archived).not.toBeNull();
@@ -355,7 +463,7 @@ export function registerProductsAutomatedSuite(
       it('caps result length when limit is supplied', async () => {
         // Ensure at least 2 products exist so the cap is meaningful.
         for (let i = 0; i < 2; i++) {
-          const p = await provider.products.create({ name: uniqueName() });
+          const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
           track(p.id);
         }
         const out = await provider.products.list({ limit: 1 });
@@ -414,6 +522,7 @@ export function registerProductsAutomatedSuite(
       it('renames product, preserves description/active/metadata/createdAt, bumps updatedAt', async () => {
         const original = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           description: 'Original description',
           metadata: { plan: 'silver' },
         });
@@ -434,6 +543,7 @@ export function registerProductsAutomatedSuite(
       it('update({id, description: null}) clears the description', async () => {
         const p = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           description: 'will be cleared',
         });
         track(p.id);
@@ -444,7 +554,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('update silently strips `active` (use deactivate / activate instead)', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         // `active` is not part of the update input schema. Zod strips it, so
         // the call succeeds and the resource remains active.
@@ -459,6 +569,7 @@ export function registerProductsAutomatedSuite(
       it('update({id, metadata}) REPLACES caller-visible metadata', async () => {
         const p = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           metadata: { keep: 'no', also: 'no' },
         });
         track(p.id);
@@ -473,6 +584,7 @@ export function registerProductsAutomatedSuite(
       it('update({id}) is a valid no-op and returns equivalent record', async () => {
         const p = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           description: 'noop',
           metadata: { a: '1' },
         });
@@ -589,6 +701,7 @@ export function registerProductsAutomatedSuite(
       it('deactivates an existing product and preserves identity/fields', async () => {
         const created = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           description: 'to deactivate',
           metadata: { tier: 'pro' },
         });
@@ -608,7 +721,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('after deactivate: get(id) still returns the record (not null) with active=false', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         await provider.products.deactivate({ id: p.id });
         const got = await provider.products.get({ id: p.id });
@@ -620,7 +733,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('after deactivate: list({active:false}) includes; list({active:true}) excludes', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         await provider.products.deactivate({ id: p.id });
 
@@ -641,7 +754,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('double-deactivate does not throw; returns null OR record with active=false', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         await provider.products.deactivate({ id: p.id });
 
@@ -691,6 +804,7 @@ export function registerProductsAutomatedSuite(
       it('activates a previously deactivated product; immutable fields preserved', async () => {
         const created = await provider.products.create({
           name: uniqueName(),
+          taxCategory: 'saas',
           description: 'to deactivate then activate',
           metadata: { tier: 'pro' },
         });
@@ -718,7 +832,7 @@ export function registerProductsAutomatedSuite(
       });
 
       it('activating an already-active product does not throw (idempotent)', async () => {
-        const p = await provider.products.create({ name: uniqueName() });
+        const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
         let result: ProviderProduct | null = null;
         await expect(

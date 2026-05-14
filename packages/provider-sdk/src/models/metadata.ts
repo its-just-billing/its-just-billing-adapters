@@ -5,6 +5,12 @@ export const RESERVED_METADATA_PREFIX = '__provider_';
 export const RESERVED_METADATA_KEYS = {
   QUANTITY_MIN: '__provider_quantity_min',
   QUANTITY_MAX: '__provider_quantity_max',
+  /**
+   * Holds the provider-native tax code (e.g. Stripe's `txcd_*`) when a
+   * product's tax category is read but does not map to the normalized
+   * TaxCategory enum. Allows round-trip via provider.raw.
+   */
+  TAX_CATEGORY_RAW: '__provider_tax_category_raw',
 } as const;
 
 export const MetadataSchema = z

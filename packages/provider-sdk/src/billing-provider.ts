@@ -12,14 +12,19 @@ import type {
   Subscriptions,
   Webhooks,
 } from './domains/index.js';
+import type { ProviderCapabilities } from './models/capabilities.js';
 
 /**
  * The umbrella interface that every billing provider adapter implements.
  *
  * Required domains are always present on a real provider. Optional domains
  * (`portal`, `billingDocuments`, `paymentMethods`) are presence-based — callers
- * check `if (provider.portal)` to detect support; there is no `capabilities`
- * object.
+ * check `if (provider.portal)` to detect support; there is no domain-level
+ * capabilities object.
+ *
+ * Within-domain value-set capabilities (e.g. which tax categories or
+ * currencies the provider accepts) are exposed via `capabilities`. This is
+ * the only legal capability surface; new axes go in there or nowhere.
  *
  * `TCheckoutPresentation` parameterizes the provider-specific presentation
  * payload returned by `checkout.createSession` / `getSession`. Checkout is the
@@ -35,6 +40,7 @@ import type {
  */
 export interface BillingProvider<TCheckoutPresentation = unknown> {
   readonly providerId: string;
+  readonly capabilities: ProviderCapabilities;
 
   customers: Customers;
   products: Products;

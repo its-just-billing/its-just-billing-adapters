@@ -107,7 +107,10 @@ export function registerPricesAutomatedSuite(
     beforeAll(async () => {
       harness = await factory();
       provider = harness.provider;
-      fixtureProduct = await provider.products.create({ name: 'fixture-prod' });
+      fixtureProduct = await provider.products.create({
+        name: 'fixture-prod',
+        taxCategory: 'saas',
+      });
       createdProductIds.add(fixtureProduct.id);
     });
 
@@ -576,7 +579,10 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.list', () => {
       it('filters by productId; active filter excludes archived', async () => {
-        const localProduct = await provider.products.create({ name: 'fixture-list' });
+        const localProduct = await provider.products.create({
+          name: 'fixture-list',
+          taxCategory: 'saas',
+        });
         trackProduct(localProduct.id);
 
         const a = await provider.prices.create({
@@ -929,7 +935,10 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.deactivate', () => {
       it('deactivates a price; returns record with active=false; immutable fields unchanged', async () => {
-        const localProduct = await provider.products.create({ name: 'fixture-deactivate' });
+        const localProduct = await provider.products.create({
+          name: 'fixture-deactivate',
+          taxCategory: 'saas',
+        });
         trackProduct(localProduct.id);
 
         const a = await provider.prices.create({

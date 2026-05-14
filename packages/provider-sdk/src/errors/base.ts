@@ -11,6 +11,7 @@ export type ProviderErrorCode =
   | 'normalization'
   | 'metadata_collision'
   | 'unmanaged_state'
+  | 'not_supported'
   | 'unknown';
 
 export interface ProviderErrorOptions {

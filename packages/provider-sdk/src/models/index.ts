@@ -2,6 +2,8 @@ export * from './money.js';
 export * from './metadata.js';
 export * from './quantity.js';
 export * from './page.js';
+export * from './tax-category.js';
+export type { ProviderCapabilities } from './capabilities.js';
 export * from './customer.js';
 export * from './product.js';
 export * from './price.js';

@@ -113,7 +113,10 @@ export function registerSubscriptionsSelfSetupSuite(
   async function getSubscription(harness: ProviderTestHarness): Promise<ProviderSubscription> {
     if (!harness.setup?.createSubscription) throw new Error('precondition');
     const customer = await harness.provider.customers.create({});
-    const product = await harness.provider.products.create({ name: 'fixture' });
+    const product = await harness.provider.products.create({
+      name: 'fixture',
+      taxCategory: 'saas',
+    });
     const price = await harness.provider.prices.create({
       productId: product.id,
       currency: 'usd',
@@ -244,7 +247,7 @@ export function registerSubscriptionsSelfSetupSuite(
         async () => {
           const sub = await getSubscription(harness);
           // Create a new price to swap to.
-          const product = await provider.products.create({ name: 'swap' });
+          const product = await provider.products.create({ name: 'swap', taxCategory: 'saas' });
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -273,7 +276,7 @@ export function registerSubscriptionsSelfSetupSuite(
           expect(before).not.toBeNull();
           const beforeItems = (before as ProviderSubscription).items;
 
-          const product = await provider.products.create({ name: 'swap2' });
+          const product = await provider.products.create({ name: 'swap2', taxCategory: 'saas' });
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -312,7 +315,10 @@ export function registerSubscriptionsSelfSetupSuite(
         "succeeds with prorationBehavior:'create_prorations'",
         async () => {
           const sub = await getSubscription(harness);
-          const product = await provider.products.create({ name: 'pro-create' });
+          const product = await provider.products.create({
+            name: 'pro-create',
+            taxCategory: 'saas',
+          });
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -333,7 +339,10 @@ export function registerSubscriptionsSelfSetupSuite(
         "succeeds with prorationBehavior:'none'",
         async () => {
           const sub = await getSubscription(harness);
-          const product = await provider.products.create({ name: 'pro-none' });
+          const product = await provider.products.create({
+            name: 'pro-none',
+            taxCategory: 'saas',
+          });
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -359,7 +368,10 @@ export function registerSubscriptionsSelfSetupSuite(
         'clears a scheduled price_change pendingChange',
         async () => {
           const sub = await getSubscription(harness);
-          const product = await provider.products.create({ name: 'sched-price' });
+          const product = await provider.products.create({
+            name: 'sched-price',
+            taxCategory: 'saas',
+          });
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
