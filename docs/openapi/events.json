@@ -1,0 +1,303 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — events",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "ProviderEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "customer.created",
+              "customer.updated",
+              "customer.deleted",
+              "product.created",
+              "product.updated",
+              "product.archived",
+              "price.created",
+              "price.updated",
+              "price.archived",
+              "subscription.created",
+              "subscription.updated",
+              "subscription.canceled",
+              "purchase.created",
+              "purchase.succeeded",
+              "purchase.failed",
+              "purchase.refunded",
+              "discount.created",
+              "discount.updated",
+              "discount.archived",
+              "checkout_session.completed",
+              "checkout_session.expired",
+              "billing_document.finalized"
+            ]
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "customer",
+                  "product",
+                  "price",
+                  "subscription",
+                  "purchase",
+                  "discount",
+                  "checkout_session",
+                  "billing_document"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "payload": {},
+          "raw": {}
+        },
+        "required": [
+          "id",
+          "type",
+          "resource",
+          "occurredAt"
+        ],
+        "description": "Normalized event envelope. `payload` is the translated domain object when available; `raw` is the provider-native event for escape-hatch use."
+      },
+      "EventsPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderEvent"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "PaginationInput": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          }
+        },
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "EventsListInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginationInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "customer.created",
+                    "customer.updated",
+                    "customer.deleted",
+                    "product.created",
+                    "product.updated",
+                    "product.archived",
+                    "price.created",
+                    "price.updated",
+                    "price.archived",
+                    "subscription.created",
+                    "subscription.updated",
+                    "subscription.canceled",
+                    "purchase.created",
+                    "purchase.succeeded",
+                    "purchase.failed",
+                    "purchase.refunded",
+                    "discount.created",
+                    "discount.updated",
+                    "discount.archived",
+                    "checkout_session.completed",
+                    "checkout_session.expired",
+                    "billing_document.finalized"
+                  ]
+                }
+              },
+              "since": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "EventsGetInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/events/list": {
+      "post": {
+        "operationId": "events.list",
+        "summary": "events.list",
+        "tags": [
+          "events"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsListInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/events/get": {
+      "post": {
+        "operationId": "events.get",
+        "summary": "events.get",
+        "tags": [
+          "events"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsGetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderEvent"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

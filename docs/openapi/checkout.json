@@ -1,0 +1,339 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — checkout",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "Metadata": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers."
+      },
+      "ProviderCheckoutSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "complete",
+              "expired"
+            ]
+          },
+          "customerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "priceId",
+                "quantity"
+              ]
+            },
+            "minItems": 1
+          },
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "presentation": {
+            "description": "Provider-specific bootstrap payload. Shape is declared by each adapter via its concrete TPresentation type. Examples: a hosted URL, an embedded client secret, or a frontend SDK token bundle."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "customerId",
+          "lineItems",
+          "successUrl",
+          "cancelUrl",
+          "metadata",
+          "expiresAt",
+          "createdAt"
+        ],
+        "description": "Checkout session, partly normalized and partly provider-specific. The fields above the `presentation` field are normalized across all providers. `presentation` carries whatever the caller needs to render or redirect checkout for this specific provider."
+      },
+      "CheckoutDiscountApplication": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "discountId"
+                ]
+              },
+              "discountId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "discountId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "code"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "code"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "allowPromotionCodes"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
+      "CheckoutCreateSessionInput": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "priceId",
+                "quantity"
+              ]
+            },
+            "minItems": 1
+          },
+          "successUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancelUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/CheckoutDiscountApplication"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        },
+        "required": [
+          "lineItems",
+          "successUrl"
+        ]
+      },
+      "CheckoutGetSessionInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/checkout/createSession": {
+      "post": {
+        "operationId": "checkout.createSession",
+        "summary": "checkout.createSession",
+        "tags": [
+          "checkout"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutCreateSessionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCheckoutSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/checkout/getSession": {
+      "post": {
+        "operationId": "checkout.getSession",
+        "summary": "checkout.getSession",
+        "tags": [
+          "checkout"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutGetSessionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderCheckoutSession"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

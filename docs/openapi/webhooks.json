@@ -1,0 +1,762 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — webhooks",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "ProviderWebhookEndpoint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "eventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "customer.created",
+                "customer.updated",
+                "customer.deleted",
+                "product.created",
+                "product.updated",
+                "product.archived",
+                "price.created",
+                "price.updated",
+                "price.archived",
+                "subscription.created",
+                "subscription.updated",
+                "subscription.canceled",
+                "purchase.created",
+                "purchase.succeeded",
+                "purchase.failed",
+                "purchase.refunded",
+                "discount.created",
+                "discount.updated",
+                "discount.archived",
+                "checkout_session.completed",
+                "checkout_session.expired",
+                "billing_document.finalized"
+              ]
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "eventTypes",
+          "active",
+          "createdAt"
+        ],
+        "description": "Normalized webhook endpoint registration. The signing secret is returned only at creation time if the provider supports readback."
+      },
+      "WebhookEndpointsPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderWebhookEndpoint"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "WebhooksListEndpointsInput": {
+        "type": "object",
+        "properties": {}
+      },
+      "WebhooksCreateEndpointOutput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProviderWebhookEndpoint"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "secret": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              }
+            },
+            "required": [
+              "secret"
+            ]
+          }
+        ],
+        "description": "Endpoint plus optional signing secret. Secrets are returned only at creation time if the provider supports readback."
+      },
+      "WebhooksCreateEndpointInput": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "eventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "customer.created",
+                "customer.updated",
+                "customer.deleted",
+                "product.created",
+                "product.updated",
+                "product.archived",
+                "price.created",
+                "price.updated",
+                "price.archived",
+                "subscription.created",
+                "subscription.updated",
+                "subscription.canceled",
+                "purchase.created",
+                "purchase.succeeded",
+                "purchase.failed",
+                "purchase.refunded",
+                "discount.created",
+                "discount.updated",
+                "discount.archived",
+                "checkout_session.completed",
+                "checkout_session.expired",
+                "billing_document.finalized"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "url",
+          "eventTypes"
+        ]
+      },
+      "WebhooksUpdateEndpointInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "eventTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "customer.created",
+                "customer.updated",
+                "customer.deleted",
+                "product.created",
+                "product.updated",
+                "product.archived",
+                "price.created",
+                "price.updated",
+                "price.archived",
+                "subscription.created",
+                "subscription.updated",
+                "subscription.canceled",
+                "purchase.created",
+                "purchase.succeeded",
+                "purchase.failed",
+                "purchase.refunded",
+                "discount.created",
+                "discount.updated",
+                "discount.archived",
+                "checkout_session.completed",
+                "checkout_session.expired",
+                "billing_document.finalized"
+              ]
+            },
+            "minItems": 1
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Update mutable fields on a webhook endpoint. Unlike products / prices / discounts, webhook `active` is a real send/don't-send toggle (not a soft-delete flag), so it is mutable here. `activate` / `deactivate` are also exposed as standalone methods for ergonomics."
+      },
+      "WebhooksActivateEndpointInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Enable a webhook endpoint so the provider resumes sending events to it. Equivalent to `updateEndpoint({ id, active: true })`. Returns null if no endpoint with this id exists."
+      },
+      "WebhooksDeactivateEndpointInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Disable a webhook endpoint so the provider stops sending events to it (without deleting it). Equivalent to `updateEndpoint({ id, active: false })`. Returns null if no endpoint with this id exists."
+      },
+      "WebhooksDeleteEndpointInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "ProviderEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "customer.created",
+              "customer.updated",
+              "customer.deleted",
+              "product.created",
+              "product.updated",
+              "product.archived",
+              "price.created",
+              "price.updated",
+              "price.archived",
+              "subscription.created",
+              "subscription.updated",
+              "subscription.canceled",
+              "purchase.created",
+              "purchase.succeeded",
+              "purchase.failed",
+              "purchase.refunded",
+              "discount.created",
+              "discount.updated",
+              "discount.archived",
+              "checkout_session.completed",
+              "checkout_session.expired",
+              "billing_document.finalized"
+            ]
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "customer",
+                  "product",
+                  "price",
+                  "subscription",
+                  "purchase",
+                  "discount",
+                  "checkout_session",
+                  "billing_document"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "payload": {},
+          "raw": {}
+        },
+        "required": [
+          "id",
+          "type",
+          "resource",
+          "occurredAt"
+        ],
+        "description": "Normalized event envelope. `payload` is the translated domain object when available; `raw` is the provider-native event for escape-hatch use."
+      },
+      "WebhooksVerifyInput": {
+        "type": "object",
+        "properties": {
+          "payload": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {}
+            ]
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 1
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "payload",
+          "signature",
+          "secret"
+        ],
+        "description": "Verify a signed webhook payload and extract the normalized event. Throws WebhookSignatureError on failure."
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/webhooks/listEndpoints": {
+      "post": {
+        "operationId": "webhooks.listEndpoints",
+        "summary": "webhooks.listEndpoints",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksListEndpointsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/createEndpoint": {
+      "post": {
+        "operationId": "webhooks.createEndpoint",
+        "summary": "webhooks.createEndpoint",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksCreateEndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhooksCreateEndpointOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/updateEndpoint": {
+      "post": {
+        "operationId": "webhooks.updateEndpoint",
+        "summary": "webhooks.updateEndpoint",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksUpdateEndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderWebhookEndpoint"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/activateEndpoint": {
+      "post": {
+        "operationId": "webhooks.activateEndpoint",
+        "summary": "webhooks.activateEndpoint",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksActivateEndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderWebhookEndpoint"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/deactivateEndpoint": {
+      "post": {
+        "operationId": "webhooks.deactivateEndpoint",
+        "summary": "webhooks.deactivateEndpoint",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksDeactivateEndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderWebhookEndpoint"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/deleteEndpoint": {
+      "post": {
+        "operationId": "webhooks.deleteEndpoint",
+        "summary": "webhooks.deleteEndpoint",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksDeleteEndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/webhooks/verify": {
+      "post": {
+        "operationId": "webhooks.verify",
+        "summary": "webhooks.verify",
+        "tags": [
+          "webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhooksVerifyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

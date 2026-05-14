@@ -1,0 +1,481 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — customers",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "Metadata": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers."
+      },
+      "ProviderCustomer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Provider-native customer ID",
+            "example": "cus_123"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation time as a JS Date in UTC instant"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "metadata",
+          "createdAt"
+        ],
+        "description": "Normalized customer record"
+      },
+      "CustomersPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderCustomer"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "PaginationInput": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          }
+        },
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "CustomersListInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginationInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          }
+        ],
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "CustomersGetInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "CustomersCreateInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        }
+      },
+      "CustomersUpdateInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "CustomersArchiveInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/customers/list": {
+      "post": {
+        "operationId": "customers.list",
+        "summary": "customers.list",
+        "tags": [
+          "customers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomersListInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomersPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/customers/get": {
+      "post": {
+        "operationId": "customers.get",
+        "summary": "customers.get",
+        "tags": [
+          "customers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomersGetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderCustomer"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/customers/create": {
+      "post": {
+        "operationId": "customers.create",
+        "summary": "customers.create",
+        "tags": [
+          "customers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomersCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCustomer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/customers/update": {
+      "post": {
+        "operationId": "customers.update",
+        "summary": "customers.update",
+        "tags": [
+          "customers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomersUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCustomer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/customers/archive": {
+      "post": {
+        "operationId": "customers.archive",
+        "summary": "customers.archive",
+        "tags": [
+          "customers"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomersArchiveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderCustomer"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

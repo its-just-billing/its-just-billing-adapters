@@ -1,0 +1,604 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — subscriptions",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "PendingSubscriptionChange": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "price_change",
+              "cancel"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "priceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "priceId",
+                "quantity"
+              ]
+            }
+          },
+          "effectiveAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "effectiveAt"
+        ],
+        "description": "A change scheduled to apply at period end. Null if no change is pending."
+      },
+      "Metadata": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers."
+      },
+      "ProviderSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "customerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "trialing",
+              "active",
+              "past_due",
+              "unpaid",
+              "canceled",
+              "incomplete",
+              "incomplete_expired"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "priceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "priceId",
+                "quantity"
+              ]
+            },
+            "minItems": 1
+          },
+          "currentPeriodStart": {
+            "type": "string"
+          },
+          "currentPeriodEnd": {
+            "type": "string"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          },
+          "canceledAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pendingChange": {
+            "$ref": "#/components/schemas/PendingSubscriptionChange"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "customerId",
+          "status",
+          "items",
+          "currentPeriodStart",
+          "currentPeriodEnd",
+          "cancelAtPeriodEnd",
+          "canceledAt",
+          "pendingChange",
+          "metadata",
+          "createdAt"
+        ],
+        "description": "Normalized subscription. Pause/resume are intentionally not modeled — use the raw provider client if needed."
+      },
+      "SubscriptionsPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSubscription"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "PaginationInput": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          }
+        },
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "SubscriptionsListInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginationInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "customerId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "trialing",
+                  "active",
+                  "past_due",
+                  "unpaid",
+                  "canceled",
+                  "incomplete",
+                  "incomplete_expired"
+                ]
+              }
+            },
+            "required": [
+              "customerId"
+            ]
+          }
+        ],
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "SubscriptionsGetInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "SubscriptionsCancelInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "when": {
+            "type": "string",
+            "enum": [
+              "immediately",
+              "at_period_end"
+            ],
+            "default": "at_period_end"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Cancel a subscription. `at_period_end` schedules the cancellation; `immediately` ends the subscription now."
+      },
+      "SubscriptionsChangeInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "priceId"
+              ]
+            },
+            "minItems": 1
+          },
+          "when": {
+            "type": "string",
+            "enum": [
+              "immediately",
+              "at_period_end"
+            ],
+            "default": "immediately"
+          },
+          "prorationBehavior": {
+            "type": "string",
+            "enum": [
+              "create_prorations",
+              "none"
+            ],
+            "default": "create_prorations"
+          }
+        },
+        "required": [
+          "id",
+          "items"
+        ],
+        "description": "Change price and/or quantity on a subscription. Items replace the current set entirely."
+      },
+      "SubscriptionsCancelScheduledChangeInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/subscriptions/list": {
+      "post": {
+        "operationId": "subscriptions.list",
+        "summary": "subscriptions.list",
+        "tags": [
+          "subscriptions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionsListInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/subscriptions/get": {
+      "post": {
+        "operationId": "subscriptions.get",
+        "summary": "subscriptions.get",
+        "tags": [
+          "subscriptions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionsGetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderSubscription"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/subscriptions/cancel": {
+      "post": {
+        "operationId": "subscriptions.cancel",
+        "summary": "subscriptions.cancel",
+        "tags": [
+          "subscriptions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionsCancelInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/subscriptions/change": {
+      "post": {
+        "operationId": "subscriptions.change",
+        "summary": "subscriptions.change",
+        "tags": [
+          "subscriptions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionsChangeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/subscriptions/cancelScheduledChange": {
+      "post": {
+        "operationId": "subscriptions.cancelScheduledChange",
+        "summary": "subscriptions.cancelScheduledChange",
+        "tags": [
+          "subscriptions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionsCancelScheduledChangeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSubscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

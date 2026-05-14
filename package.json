@@ -1,0 +1,32 @@
+{
+  "name": "its-just-billing-adapters",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "author": "Steven Chang",
+  "type": "module",
+  "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:conformance:automated": "turbo run test:conformance:automated",
+    "test:conformance:semi-manual": "turbo run test:conformance:semi-manual",
+    "test:conformance:self-setup": "turbo run test:conformance:self-setup",
+    "docs:build": "turbo run docs:build",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.5",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+  }
+}

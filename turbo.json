@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:conformance:automated": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:conformance:semi-manual": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false,
+      "persistent": false
+    },
+    "test:conformance:self-setup": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "docs:build": {
+      "dependsOn": ["^build"],
+      "outputs": ["../../docs/openapi/**", "../../docs/reference/**"]
+    }
+  }
+}

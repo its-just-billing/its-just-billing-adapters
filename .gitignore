@@ -1,0 +1,40 @@
+# dependencies
+node_modules
+
+# build output
+dist
+*.tsbuildinfo
+
+# caches
+.turbo
+.cache
+.eslintcache
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# editor / OS
+.DS_Store
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# coverage / test artifacts
+coverage
+*.lcov
+
+# misc
+.tmp
+tmp

@@ -1,0 +1,31 @@
+{
+  "name": "@its-just-billing/provider-stripe",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:conformance:automated": "vitest run conformance.automated",
+    "test:conformance:self-setup": "vitest run conformance.self-setup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@its-just-billing/provider-sdk": "workspace:*",
+    "stripe": "^17.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

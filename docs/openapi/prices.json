@@ -1,0 +1,1019 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Billing Provider SDK — prices",
+    "version": "0.0.0",
+    "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
+  },
+  "components": {
+    "schemas": {
+      "Quantity": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "max": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "min"
+        ],
+        "description": "Normalized quantity constraint. `max` is the inclusive upper bound; omit `max` for an unbounded range."
+      },
+      "Metadata": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers."
+      },
+      "ProviderPrice": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "productId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "active": {
+                "type": "boolean"
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[a-z]{3}$",
+                "description": "Lowercase ISO 4217 currency code",
+                "example": "usd"
+              },
+              "quantity": {
+                "$ref": "#/components/schemas/Quantity"
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/Metadata"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "productId",
+              "active",
+              "currency",
+              "quantity",
+              "metadata",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "one_time"
+                    ]
+                  },
+                  "unitAmount": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "kind",
+                  "unitAmount"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "recurring"
+                    ]
+                  },
+                  "unitAmount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "day",
+                      "week",
+                      "month",
+                      "year"
+                    ]
+                  },
+                  "intervalCount": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "kind",
+                  "unitAmount",
+                  "interval",
+                  "intervalCount"
+                ]
+              }
+            ]
+          }
+        ],
+        "description": "Normalized price record. Either one-time or recurring; quantity is first-class."
+      },
+      "PricesPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderPrice"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "PaginationInput": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100
+          }
+        },
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "PricesListInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginationInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "productId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "active": {
+                "type": "boolean"
+              }
+            }
+          }
+        ],
+        "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
+      },
+      "PricesGetInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "PricesCreateInput": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "productId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[a-z]{3}$",
+                "description": "Lowercase ISO 4217 currency code",
+                "example": "usd"
+              },
+              "quantity": {
+                "$ref": "#/components/schemas/Quantity"
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/Metadata"
+              }
+            },
+            "required": [
+              "productId",
+              "currency"
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "one_time"
+                    ]
+                  },
+                  "unitAmount": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "kind",
+                  "unitAmount"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "recurring"
+                    ]
+                  },
+                  "unitAmount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "day",
+                      "week",
+                      "month",
+                      "year"
+                    ]
+                  },
+                  "intervalCount": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "unitAmount",
+                  "interval"
+                ]
+              }
+            ]
+          }
+        ],
+        "description": "Create a one-time or recurring price. Newly created prices are always active; soft-delete via `deactivate`. Immutable fields (currency, kind, recurring shape) cannot be changed later — `update` only accepts metadata and quantity."
+      },
+      "PricesUpdateInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Update mutable fields only. Adapters must reject attempts to change currency, kind, or recurring shape with a ProviderConstraintError (422). `active` is excluded — use `deactivate` / `activate` for state changes."
+      },
+      "PricesDeactivateInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Soft-delete a price. Sets `active: false`. Returns the deactivated price, or null if no price with this id exists."
+      },
+      "PricesActivateInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "description": "Restore a soft-deleted price. Sets `active: true`. Returns the activated price, or null if no price with this id exists."
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/prices/list": {
+      "post": {
+        "operationId": "prices.list",
+        "summary": "prices.list",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesListInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricesPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/prices/get": {
+      "post": {
+        "operationId": "prices.get",
+        "summary": "prices.get",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesGetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderPrice"
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "allOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "productId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "pattern": "^[a-z]{3}$",
+                                  "description": "Lowercase ISO 4217 currency code",
+                                  "example": "usd"
+                                },
+                                "quantity": {
+                                  "$ref": "#/components/schemas/Quantity"
+                                },
+                                "metadata": {
+                                  "$ref": "#/components/schemas/Metadata"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                },
+                                "updatedAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "productId",
+                                "active",
+                                "currency",
+                                "quantity",
+                                "metadata",
+                                "createdAt",
+                                "updatedAt"
+                              ]
+                            },
+                            {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "one_time"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "recurring"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    "interval": {
+                                      "type": "string",
+                                      "enum": [
+                                        "day",
+                                        "week",
+                                        "month",
+                                        "year"
+                                      ]
+                                    },
+                                    "intervalCount": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount",
+                                    "interval",
+                                    "intervalCount"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/prices/create": {
+      "post": {
+        "operationId": "prices.create",
+        "summary": "prices.create",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/prices/update": {
+      "post": {
+        "operationId": "prices.update",
+        "summary": "prices.update",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/prices/deactivate": {
+      "post": {
+        "operationId": "prices.deactivate",
+        "summary": "prices.deactivate",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesDeactivateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderPrice"
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "allOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "productId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "pattern": "^[a-z]{3}$",
+                                  "description": "Lowercase ISO 4217 currency code",
+                                  "example": "usd"
+                                },
+                                "quantity": {
+                                  "$ref": "#/components/schemas/Quantity"
+                                },
+                                "metadata": {
+                                  "$ref": "#/components/schemas/Metadata"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                },
+                                "updatedAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "productId",
+                                "active",
+                                "currency",
+                                "quantity",
+                                "metadata",
+                                "createdAt",
+                                "updatedAt"
+                              ]
+                            },
+                            {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "one_time"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "recurring"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    "interval": {
+                                      "type": "string",
+                                      "enum": [
+                                        "day",
+                                        "week",
+                                        "month",
+                                        "year"
+                                      ]
+                                    },
+                                    "intervalCount": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount",
+                                    "interval",
+                                    "intervalCount"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    },
+    "/prices/activate": {
+      "post": {
+        "operationId": "prices.activate",
+        "summary": "prices.activate",
+        "tags": [
+          "prices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesActivateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderPrice"
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "allOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "productId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "pattern": "^[a-z]{3}$",
+                                  "description": "Lowercase ISO 4217 currency code",
+                                  "example": "usd"
+                                },
+                                "quantity": {
+                                  "$ref": "#/components/schemas/Quantity"
+                                },
+                                "metadata": {
+                                  "$ref": "#/components/schemas/Metadata"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                },
+                                "updatedAt": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "productId",
+                                "active",
+                                "currency",
+                                "quantity",
+                                "metadata",
+                                "createdAt",
+                                "updatedAt"
+                              ]
+                            },
+                            {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "one_time"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "recurring"
+                                      ]
+                                    },
+                                    "unitAmount": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    "interval": {
+                                      "type": "string",
+                                      "enum": [
+                                        "day",
+                                        "week",
+                                        "month",
+                                        "year"
+                                      ]
+                                    },
+                                    "intervalCount": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "unitAmount",
+                                    "interval",
+                                    "intervalCount"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ProviderValidationError"
+          },
+          "401": {
+            "description": "ProviderAuthError"
+          },
+          "404": {
+            "description": "ProviderNotFoundError (only when applicable)"
+          },
+          "409": {
+            "description": "ProviderConflictError (only when applicable)"
+          },
+          "422": {
+            "description": "ProviderConstraintError or MetadataCollisionError"
+          },
+          "429": {
+            "description": "ProviderRateLimitError"
+          },
+          "502": {
+            "description": "ProviderNormalizationError"
+          },
+          "503": {
+            "description": "ProviderUnavailableError"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@its-just-billing/provider-sdk",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./conformance": {
+      "types": "./dist/conformance/index.d.ts",
+      "import": "./dist/conformance/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "docs:build": "tsx scripts/build-docs.ts",
+    "check:conformance-purity": "tsx scripts/check-conformance-purity.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.0",
+    "zod": "^3.24.1"
+  },
+  "peerDependencies": {
+    "vitest": "^2.1.8"
+  },
+  "peerDependenciesMeta": {
+    "vitest": { "optional": true }
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
