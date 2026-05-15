@@ -11,12 +11,12 @@ import type {
   SubscriptionsListOutput,
 } from '../schemas/subscriptions/index.js';
 
-export interface Subscriptions {
-  list(input: SubscriptionsListInput): Promise<SubscriptionsListOutput>;
-  get(input: SubscriptionsGetInput): Promise<SubscriptionsGetOutput>;
-  cancel(input: SubscriptionsCancelInput): Promise<SubscriptionsCancelOutput>;
-  change(input: SubscriptionsChangeInput): Promise<SubscriptionsChangeOutput>;
+export interface Subscriptions<TRaw = unknown> {
+  list(input: SubscriptionsListInput): Promise<SubscriptionsListOutput<TRaw>>;
+  get(input: SubscriptionsGetInput): Promise<SubscriptionsGetOutput<TRaw>>;
+  cancel(input: SubscriptionsCancelInput): Promise<SubscriptionsCancelOutput<TRaw>>;
+  change(input: SubscriptionsChangeInput): Promise<SubscriptionsChangeOutput<TRaw>>;
   cancelScheduledChange(
     input: SubscriptionsCancelScheduledChangeInput,
-  ): Promise<SubscriptionsCancelScheduledChangeOutput>;
+  ): Promise<SubscriptionsCancelScheduledChangeOutput<TRaw>>;
 }

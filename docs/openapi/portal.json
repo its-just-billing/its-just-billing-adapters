@@ -37,7 +37,8 @@
           },
           "createdAt": {
             "type": "string"
-          }
+          },
+          "raw": {}
         },
         "required": [
           "id",

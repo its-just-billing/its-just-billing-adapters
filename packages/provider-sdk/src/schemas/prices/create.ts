@@ -1,5 +1,9 @@
 import { z } from '../../zod.js';
-import { ProviderPriceSchema, RecurringIntervalSchema } from '../../models/price.js';
+import {
+  ProviderPriceSchema,
+  RecurringIntervalSchema,
+  type ProviderPrice,
+} from '../../models/price.js';
 import { CurrencySchema } from '../../models/money.js';
 import { MetadataSchema } from '../../models/metadata.js';
 import { QuantitySchema } from '../../models/quantity.js';
@@ -32,4 +36,4 @@ export const PricesCreateInputSchema = z
 export const PricesCreateOutputSchema = ProviderPriceSchema;
 
 export type PricesCreateInput = z.infer<typeof PricesCreateInputSchema>;
-export type PricesCreateOutput = z.infer<typeof PricesCreateOutputSchema>;
+export type PricesCreateOutput<TRaw = unknown> = ProviderPrice<TRaw>;

@@ -1,6 +1,9 @@
 import { z } from '../../zod.js';
-import { ProviderWebhookEndpointSchema } from '../../models/webhook.js';
-import { pageOf } from '../../models/page.js';
+import {
+  ProviderWebhookEndpointSchema,
+  type ProviderWebhookEndpoint,
+} from '../../models/webhook.js';
+import { pageOf, type Page } from '../../models/page.js';
 
 export const WebhooksListEndpointsInputSchema = z
   .object({})
@@ -13,4 +16,4 @@ export const WebhooksListEndpointsOutputSchema = pageOf(
 );
 
 export type WebhooksListEndpointsInput = z.infer<typeof WebhooksListEndpointsInputSchema>;
-export type WebhooksListEndpointsOutput = z.infer<typeof WebhooksListEndpointsOutputSchema>;
+export type WebhooksListEndpointsOutput<TRaw = unknown> = Page<ProviderWebhookEndpoint<TRaw>>;

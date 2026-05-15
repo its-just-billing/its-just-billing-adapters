@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderProductSchema } from '../../models/product.js';
+import { ProviderProductSchema, type ProviderProduct } from '../../models/product.js';
 import { MetadataSchema } from '../../models/metadata.js';
 
 export const ProductsUpdateInputSchema = z
@@ -17,4 +17,4 @@ export const ProductsUpdateInputSchema = z
 export const ProductsUpdateOutputSchema = ProviderProductSchema;
 
 export type ProductsUpdateInput = z.infer<typeof ProductsUpdateInputSchema>;
-export type ProductsUpdateOutput = z.infer<typeof ProductsUpdateOutputSchema>;
+export type ProductsUpdateOutput<TRaw = unknown> = ProviderProduct<TRaw>;

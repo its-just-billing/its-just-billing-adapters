@@ -3,6 +3,6 @@ import type {
   PortalCreateSessionOutput,
 } from '../schemas/portal/index.js';
 
-export interface Portal {
-  createSession(input: PortalCreateSessionInput): Promise<PortalCreateSessionOutput>;
+export interface Portal<TRaw = unknown> {
+  createSession(input: PortalCreateSessionInput): Promise<PortalCreateSessionOutput<TRaw>>;
 }

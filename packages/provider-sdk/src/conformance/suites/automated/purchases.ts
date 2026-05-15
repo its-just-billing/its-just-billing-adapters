@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { BillingProvider, ProviderPurchase } from '../../../index.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderValidationError } from '../../../errors/index.js';
+import type { BillingProvider, ProviderPurchase } from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -76,9 +76,7 @@ export function registerPurchasesAutomatedSuite(
 
     expect(rec.priceId === null || typeof rec.priceId === 'string').toBe(true);
     expect(rec.productId === null || typeof rec.productId === 'string').toBe(true);
-    expect(
-      rec.checkoutSessionId === null || typeof rec.checkoutSessionId === 'string',
-    ).toBe(true);
+    expect(rec.checkoutSessionId === null || typeof rec.checkoutSessionId === 'string').toBe(true);
 
     // metadata
     expect(isPlainObject(rec.metadata)).toBe(true);
@@ -158,9 +156,9 @@ export function registerPurchasesAutomatedSuite(
         ['object', { x: 1 }],
         ['null', null],
       ])('rejects invalid customerId (%s)', async (_l, value) => {
-        await expect(
-          provider.purchases.list({ customerId: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.purchases.list({ customerId: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: status ----
@@ -171,9 +169,9 @@ export function registerPurchasesAutomatedSuite(
         ['null', null],
         ['empty', ''],
       ])('rejects invalid status (%s)', async (_l, value) => {
-        await expect(
-          provider.purchases.list({ status: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.purchases.list({ status: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: cursor ----
@@ -183,9 +181,9 @@ export function registerPurchasesAutomatedSuite(
         ['boolean', true],
         ['object', { x: 1 }],
       ])('rejects invalid cursor (%s)', async (_l, value) => {
-        await expect(
-          provider.purchases.list({ cursor: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.purchases.list({ cursor: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: limit ----
@@ -197,9 +195,9 @@ export function registerPurchasesAutomatedSuite(
         ['string', '10'],
         ['NaN', Number.NaN],
       ])('rejects invalid limit (%s)', async (_l, value) => {
-        await expect(
-          provider.purchases.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.purchases.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 

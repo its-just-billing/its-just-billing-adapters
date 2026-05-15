@@ -1,6 +1,10 @@
 import { z } from '../../zod.js';
-import { ProviderPurchaseSchema, PurchaseStatusSchema } from '../../models/purchase.js';
-import { pageOf } from '../../models/page.js';
+import {
+  ProviderPurchaseSchema,
+  PurchaseStatusSchema,
+  type ProviderPurchase,
+} from '../../models/purchase.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const PurchasesListInputSchema = PaginationInputSchema.extend({
@@ -13,4 +17,4 @@ export const PurchasesListInputSchema = PaginationInputSchema.extend({
 export const PurchasesListOutputSchema = pageOf(ProviderPurchaseSchema, 'PurchasesPage');
 
 export type PurchasesListInput = z.infer<typeof PurchasesListInputSchema>;
-export type PurchasesListOutput = z.infer<typeof PurchasesListOutputSchema>;
+export type PurchasesListOutput<TRaw = unknown> = Page<ProviderPurchase<TRaw>>;

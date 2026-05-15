@@ -1,5 +1,8 @@
 import { z } from '../../zod.js';
-import { ProviderWebhookEndpointSchema } from '../../models/webhook.js';
+import {
+  ProviderWebhookEndpointSchema,
+  type ProviderWebhookEndpoint,
+} from '../../models/webhook.js';
 
 export const WebhooksActivateEndpointInputSchema = z
   .object({ id: z.string().min(1) })
@@ -11,4 +14,4 @@ export const WebhooksActivateEndpointInputSchema = z
 export const WebhooksActivateEndpointOutputSchema = ProviderWebhookEndpointSchema.nullable();
 
 export type WebhooksActivateEndpointInput = z.infer<typeof WebhooksActivateEndpointInputSchema>;
-export type WebhooksActivateEndpointOutput = z.infer<typeof WebhooksActivateEndpointOutputSchema>;
+export type WebhooksActivateEndpointOutput<TRaw = unknown> = ProviderWebhookEndpoint<TRaw> | null;

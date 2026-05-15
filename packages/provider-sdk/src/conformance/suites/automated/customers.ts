@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import type { BillingProvider, ProviderCustomer } from '../../../index.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
-  ProviderValidationError,
   MetadataCollisionError,
   ProviderNotFoundError,
+  ProviderValidationError,
 } from '../../../errors/index.js';
+import type { BillingProvider, ProviderCustomer } from '../../../index.js';
+import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { nonNull } from '../../skip-if.js';
 
 /**
  * Registers the customers automated conformance suite. All scenarios in the
@@ -97,6 +99,7 @@ export function registerCustomersAutomatedSuite(
         const c = await provider.customers.create({});
         track(c.id);
         expectIsCustomer(c);
+        await harness.assertConsistency?.customer?.(c);
         expect(c.email).toBeNull();
         expect(c.name).toBeNull();
         expect(c.metadata).toEqual({});
@@ -110,6 +113,7 @@ export function registerCustomersAutomatedSuite(
         const c = await provider.customers.create({ email, name, metadata });
         track(c.id);
         expectIsCustomer(c);
+        await harness.assertConsistency?.customer?.(c);
         expect(c.email).toBe(email);
         expect(c.name).toBe(name);
         expect(c.metadata).toEqual(metadata);
@@ -121,6 +125,8 @@ export function registerCustomersAutomatedSuite(
         const b = await provider.customers.create({});
         track(a.id);
         track(b.id);
+        await harness.assertConsistency?.customer?.(a);
+        await harness.assertConsistency?.customer?.(b);
         expect(a.id).not.toBe(b.id);
       });
 
@@ -128,8 +134,9 @@ export function registerCustomersAutomatedSuite(
         const email = uniqueEmail();
         const c = await provider.customers.create({ email, name: 'Lookup' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const got = await provider.customers.get({ id: c.id });
-        expect(got).toEqual(c);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(c));
       });
 
       // ---- validation: input shape ----
@@ -156,9 +163,9 @@ export function registerCustomersAutomatedSuite(
         ['array', ['a@b.c']],
         ['object', { x: 1 }],
       ])('rejects invalid email (%s)', async (_label, value) => {
-        await expect(
-          provider.customers.create({ email: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.customers.create({ email: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: name ----
@@ -169,9 +176,9 @@ export function registerCustomersAutomatedSuite(
         ['array', ['x']],
         ['object', { x: 1 }],
       ])('rejects invalid name (%s)', async (_label, value) => {
-        await expect(
-          provider.customers.create({ name: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.customers.create({ name: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: metadata shape & values ----
@@ -181,9 +188,9 @@ export function registerCustomersAutomatedSuite(
         ['array', [['k', 'v']]],
         ['string', 'foo'],
       ])('rejects non-object metadata (%s)', async (_label, value) => {
-        await expect(
-          provider.customers.create({ metadata: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.customers.create({ metadata: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       it.each([
@@ -218,11 +225,12 @@ export function registerCustomersAutomatedSuite(
       beforeEach(async () => {
         seed = await provider.customers.create({ email: uniqueEmail(), name: 'Seed' });
         track(seed.id);
+        await harness.assertConsistency?.customer?.(seed);
       });
 
       it('returns a deep-equal record for an existing id', async () => {
         const got = await provider.customers.get({ id: seed.id });
-        expect(got).toEqual(seed);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(seed));
       });
 
       it('returns null (does not throw) for a missing id', async () => {
@@ -277,6 +285,8 @@ export function registerCustomersAutomatedSuite(
         const b = await provider.customers.create({ email: uniqueEmail(), name: 'B' });
         track(a.id);
         track(b.id);
+        await harness.assertConsistency?.customer?.(a);
+        await harness.assertConsistency?.customer?.(b);
         // Page through until we find both, in case the provider paginates.
         const seen = new Set<string>();
         let cursor: string | undefined;
@@ -301,6 +311,7 @@ export function registerCustomersAutomatedSuite(
         const email = uniqueEmail();
         const c = await provider.customers.create({ email, name: 'Filter' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const out = await provider.customers.list({ email });
         expectIsPage<ProviderCustomer>(out);
         expect(out.data.length).toBeGreaterThan(0);
@@ -315,6 +326,7 @@ export function registerCustomersAutomatedSuite(
         for (let i = 0; i < 3; i++) {
           const c = await provider.customers.create({ email: uniqueEmail() });
           track(c.id);
+          await harness.assertConsistency?.customer?.(c);
         }
         const out = await provider.customers.list({ limit: 2 });
         expectIsPage<ProviderCustomer>(out);
@@ -342,9 +354,9 @@ export function registerCustomersAutomatedSuite(
         ['object', { x: 1 }],
         ['null', null],
       ])('rejects invalid email filter (%s)', async (_label, value) => {
-        await expect(
-          provider.customers.list({ email: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.customers.list({ email: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: cursor ----
@@ -364,9 +376,9 @@ export function registerCustomersAutomatedSuite(
         ['NaN', Number.NaN],
         ['null', null],
       ])('rejects invalid limit (%s)', async (_label, value) => {
-        await expect(
-          provider.customers.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.customers.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 
@@ -378,8 +390,10 @@ export function registerCustomersAutomatedSuite(
         const email = uniqueEmail();
         const c = await provider.customers.create({ email, name: 'Original' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const u = await provider.customers.update({ id: c.id, name: 'Renamed' });
         expectIsCustomer(u);
+        await harness.assertConsistency?.customer?.(u);
         expect(u.id).toBe(c.id);
         expect(u.name).toBe('Renamed');
         expect(u.email).toBe(email);
@@ -390,8 +404,10 @@ export function registerCustomersAutomatedSuite(
       it('update({id, email: null}) clears the email', async () => {
         const c = await provider.customers.create({ email: uniqueEmail(), name: 'Clear' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const u = await provider.customers.update({ id: c.id, email: null });
         expectIsCustomer(u);
+        await harness.assertConsistency?.customer?.(u);
         expect(u.email).toBeNull();
         expect(u.name).toBe('Clear');
       });
@@ -402,11 +418,13 @@ export function registerCustomersAutomatedSuite(
           metadata: { keep: 'no', also: 'no' },
         });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const u = await provider.customers.update({
           id: c.id,
           metadata: { fresh: 'yes' },
         });
         expectIsCustomer(u);
+        await harness.assertConsistency?.customer?.(u);
         expect(u.metadata).toEqual({ fresh: 'yes' });
       });
 
@@ -417,8 +435,10 @@ export function registerCustomersAutomatedSuite(
           metadata: { a: '1' },
         });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const u = await provider.customers.update({ id: c.id });
         expectIsCustomer(u);
+        await harness.assertConsistency?.customer?.(u);
         expect(u.id).toBe(c.id);
         expect(u.email).toBe(c.email);
         expect(u.name).toBe(c.name);
@@ -429,9 +449,11 @@ export function registerCustomersAutomatedSuite(
       it('after update, get returns the deep-equal updated record', async () => {
         const c = await provider.customers.create({ email: uniqueEmail(), name: 'PreGet' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const u = await provider.customers.update({ id: c.id, name: 'PostGet' });
+        await harness.assertConsistency?.customer?.(u);
         const got = await provider.customers.get({ id: c.id });
-        expect(got).toEqual(u);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(u));
       });
 
       it('throws ProviderNotFoundError (404) for a missing id', async () => {
@@ -448,6 +470,7 @@ export function registerCustomersAutomatedSuite(
       it('throws MetadataCollisionError (422) for reserved __provider_ keys', async () => {
         const c = await provider.customers.create({ email: uniqueEmail() });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const err = await provider.customers
           .update({ id: c.id, metadata: { __provider_x: 'y' } as any })
           .then(
@@ -543,9 +566,11 @@ export function registerCustomersAutomatedSuite(
       it('archives an existing customer and returns a record with the same id', async () => {
         const c = await provider.customers.create({ email: uniqueEmail(), name: 'Archive' });
         track(c.id);
+        await harness.assertConsistency?.customer?.(c);
         const archived = await provider.customers.archive({ id: c.id });
         expect(archived).not.toBeNull();
         expectIsCustomer(archived as ProviderCustomer);
+        await harness.assertConsistency?.customer?.(archived as ProviderCustomer);
         expect((archived as ProviderCustomer).id).toBe(c.id);
       });
 
@@ -559,7 +584,11 @@ export function registerCustomersAutomatedSuite(
       it('is idempotent — a second archive on the same id does not throw', async () => {
         const c = await provider.customers.create({ email: uniqueEmail() });
         track(c.id);
-        await provider.customers.archive({ id: c.id });
+        await harness.assertConsistency?.customer?.(c);
+        const first = await provider.customers.archive({ id: c.id });
+        if (first !== null) {
+          await harness.assertConsistency?.customer?.(first);
+        }
         let second: ProviderCustomer | null = null;
         await expect(
           (async () => {
@@ -569,6 +598,7 @@ export function registerCustomersAutomatedSuite(
         // Allow either null or a record with the same id on the second call.
         if (second !== null) {
           expect((second as ProviderCustomer).id).toBe(c.id);
+          await harness.assertConsistency?.customer?.(second);
         }
       });
 

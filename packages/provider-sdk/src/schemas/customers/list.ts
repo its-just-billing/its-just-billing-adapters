@@ -1,6 +1,6 @@
 import { z } from '../../zod.js';
-import { ProviderCustomerSchema } from '../../models/customer.js';
-import { pageOf } from '../../models/page.js';
+import { ProviderCustomerSchema, type ProviderCustomer } from '../../models/customer.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const CustomersListInputSchema = PaginationInputSchema.extend({
@@ -12,4 +12,4 @@ export const CustomersListInputSchema = PaginationInputSchema.extend({
 export const CustomersListOutputSchema = pageOf(ProviderCustomerSchema, 'CustomersPage');
 
 export type CustomersListInput = z.infer<typeof CustomersListInputSchema>;
-export type CustomersListOutput = z.infer<typeof CustomersListOutputSchema>;
+export type CustomersListOutput<TRaw = unknown> = Page<ProviderCustomer<TRaw>>;

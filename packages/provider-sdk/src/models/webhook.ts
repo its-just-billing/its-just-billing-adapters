@@ -8,10 +8,14 @@ export const ProviderWebhookEndpointSchema = z
     eventTypes: z.array(ProviderEventTypeSchema),
     active: z.boolean(),
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderWebhookEndpoint', {
     description:
       'Normalized webhook endpoint registration. The signing secret is returned only at creation time if the provider supports readback.',
   });
 
-export type ProviderWebhookEndpoint = z.infer<typeof ProviderWebhookEndpointSchema>;
+export type ProviderWebhookEndpoint<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderWebhookEndpointSchema>,
+  'raw'
+> & { raw?: TRaw };

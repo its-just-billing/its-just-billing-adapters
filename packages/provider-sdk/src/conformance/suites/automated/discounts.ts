@@ -1,18 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  MetadataCollisionError,
+  ProviderConflictError,
+  ProviderConstraintError,
+  ProviderNotFoundError,
+  ProviderValidationError,
+} from '../../../errors/index.js';
 import type {
   BillingProvider,
-  ProviderDiscount,
   DiscountBenefit,
   DiscountDuration,
+  ProviderDiscount,
 } from '../../../index.js';
-import {
-  ProviderValidationError,
-  ProviderConstraintError,
-  ProviderConflictError,
-  ProviderNotFoundError,
-  MetadataCollisionError,
-} from '../../../errors/index.js';
+import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { nonNull } from '../../skip-if.js';
 
 /**
  * Registers the discounts automated conformance suite. All scenarios in the
@@ -180,6 +182,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.code).toBe(code);
         expect(d.benefit).toEqual({ kind: 'percent', percentOff: 10 });
         expect(d.duration).toEqual({ kind: 'once' });
@@ -199,6 +202,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.code).toBeNull();
       });
 
@@ -210,6 +214,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.code).toBeNull();
         expect(d.duration).toEqual({ kind: 'repeating', months: 3 });
       });
@@ -221,6 +226,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.benefit).toEqual({
           kind: 'amount',
           amountOff: { amount: 500, currency: 'usd' },
@@ -236,6 +242,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.expiresAt).toBeInstanceOf(Date);
         expect((d.expiresAt as Date).getTime()).toBe(expiresAt.getTime());
       });
@@ -248,6 +255,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.redemptionLimit).toBe(100);
       });
 
@@ -259,6 +267,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.restrictedTo).toEqual({ productIds: ['prod_abc'] });
       });
 
@@ -270,6 +279,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.restrictedTo).toEqual({ priceIds: ['price_abc', 'price_def'] });
       });
 
@@ -281,6 +291,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.metadata).toEqual({ campaign: 'launch' });
       });
 
@@ -298,9 +309,9 @@ export function registerDiscountsAutomatedSuite(
       });
 
       it('rejects missing benefit', async () => {
-        await expect(
-          provider.discounts.create({ duration: once } as any),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.discounts.create({ duration: once } as any)).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       it('rejects missing duration', async () => {
@@ -384,6 +395,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect((d.benefit as { kind: 'percent'; percentOff: number }).percentOff).toBe(value);
       });
 
@@ -454,6 +466,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.benefit).toEqual({
           kind: 'amount',
           amountOff: { amount: 0, currency: 'usd' },
@@ -467,9 +480,10 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
-        expect((d.benefit as { kind: 'amount'; amountOff: { currency: string } }).amountOff.currency).toBe(
-          'eur',
-        );
+        await harness.assertConsistency?.discount?.(d);
+        expect(
+          (d.benefit as { kind: 'amount'; amountOff: { currency: string } }).amountOff.currency,
+        ).toBe('eur');
       });
 
       // ---- validation: duration ----
@@ -523,6 +537,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.duration).toEqual(duration);
       });
 
@@ -555,6 +570,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.expiresAt).toBeNull();
       });
 
@@ -582,6 +598,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.redemptionLimit).toBeNull();
       });
 
@@ -593,6 +610,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.redemptionLimit).toBe(1);
       });
 
@@ -626,6 +644,7 @@ export function registerDiscountsAutomatedSuite(
         });
         track(d.id);
         expectIsDiscount(d);
+        await harness.assertConsistency?.discount?.(d);
       });
 
       it.each([
@@ -721,6 +740,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(first.id);
+        await harness.assertConsistency?.discount?.(first);
         const err = await provider.discounts
           .create({ code, benefit: percent10, duration: once })
           .then(
@@ -743,8 +763,9 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const got = await provider.discounts.get({ id: d.id });
-        expect(got).toEqual(d);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(d));
       });
 
       it('created with code=null has code=null on read', async () => {
@@ -754,6 +775,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const got = await provider.discounts.get({ id: d.id });
         expect(got).not.toBeNull();
         expectIsDiscount(got);
@@ -766,6 +788,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const got = await provider.discounts.get({ id: d.id });
         expect(got).not.toBeNull();
         expectIsDiscount(got);
@@ -832,6 +855,8 @@ export function registerDiscountsAutomatedSuite(
         });
         track(a.id);
         track(b.id);
+        await harness.assertConsistency?.discount?.(a);
+        await harness.assertConsistency?.discount?.(b);
         const seen = new Map<string, ProviderDiscount>();
         const page = await provider.discounts.list({ limit: 100 });
         expectIsPage<ProviderDiscount>(page);
@@ -849,6 +874,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const out = await provider.discounts.list({ active: true, limit: 100 });
         expectIsPage<ProviderDiscount>(out);
         for (const r of out.data) {
@@ -864,7 +890,11 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
-        await provider.discounts.deactivate({ id: d.id });
+        await harness.assertConsistency?.discount?.(d);
+        const deactivated = await provider.discounts.deactivate({ id: d.id });
+        if (deactivated !== null) {
+          await harness.assertConsistency?.discount?.(deactivated);
+        }
         const out = await provider.discounts.list({ active: false, limit: 100 });
         expectIsPage<ProviderDiscount>(out);
         for (const r of out.data) {
@@ -881,9 +911,9 @@ export function registerDiscountsAutomatedSuite(
       });
 
       it('rejects non-string cursor', async () => {
-        await expect(
-          provider.discounts.list({ cursor: 123 as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.discounts.list({ cursor: 123 as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: limit ----
@@ -894,9 +924,9 @@ export function registerDiscountsAutomatedSuite(
         ['too large', 101],
         ['string', '10'],
       ])('rejects invalid limit (%s)', async (_label, value) => {
-        await expect(
-          provider.discounts.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.discounts.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: active ----
@@ -905,9 +935,9 @@ export function registerDiscountsAutomatedSuite(
         ['number', 1],
         ['null', null],
       ])('rejects non-boolean active (%s)', async (_label, value) => {
-        await expect(
-          provider.discounts.list({ active: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.discounts.list({ active: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 
@@ -923,10 +953,12 @@ export function registerDiscountsAutomatedSuite(
           metadata: { campaign: 'orig' },
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const deactivated = await provider.discounts.deactivate({ id: d.id });
         expect(deactivated).not.toBeNull();
         const u = deactivated as ProviderDiscount;
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.active).toBe(false);
         expect(u.id).toBe(d.id);
         expect(u.code).toBe(d.code);
@@ -943,9 +975,11 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         // `active` is not part of the update input schema. Zod strips it.
         const u = await provider.discounts.update({ id: d.id, active: false } as any);
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.id).toBe(d.id);
         expect(u.active).toBe(true);
       });
@@ -957,9 +991,11 @@ export function registerDiscountsAutomatedSuite(
           expiresAt: null,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const expiresAt = new Date('2099-01-01T00:00:00Z');
         const u = await provider.discounts.update({ id: d.id, expiresAt });
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.expiresAt).toBeInstanceOf(Date);
         expect((u.expiresAt as Date).getTime()).toBe(expiresAt.getTime());
       });
@@ -971,8 +1007,10 @@ export function registerDiscountsAutomatedSuite(
           expiresAt: new Date('2099-01-01T00:00:00Z'),
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const u = await provider.discounts.update({ id: d.id, expiresAt: null });
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.expiresAt).toBeNull();
       });
 
@@ -983,11 +1021,13 @@ export function registerDiscountsAutomatedSuite(
           metadata: { keep: 'no', also: 'no' },
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const u = await provider.discounts.update({
           id: d.id,
           metadata: { campaign: 'spring' },
         });
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.metadata).toEqual({ campaign: 'spring' });
       });
 
@@ -999,8 +1039,10 @@ export function registerDiscountsAutomatedSuite(
           metadata: { a: '1' },
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const u = await provider.discounts.update({ id: d.id });
         expectIsDiscount(u);
+        await harness.assertConsistency?.discount?.(u);
         expect(u.id).toBe(d.id);
         expect(u.code).toBe(d.code);
         expect(u.benefit).toEqual(d.benefit);
@@ -1055,6 +1097,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const err = await provider.discounts
           .update({ id: d.id, metadata: { __provider_x: 'y' } as any })
           .then(
@@ -1081,11 +1124,16 @@ export function registerDiscountsAutomatedSuite(
             redemptionLimit: 5,
           });
           track(d.id);
+          await harness.assertConsistency?.discount?.(d);
 
           let threw = false;
           let caught: unknown = null;
           try {
-            await provider.discounts.update({ id: d.id, ...(patch as any) } as any);
+            const updated = await provider.discounts.update({
+              id: d.id,
+              ...(patch as any),
+            } as any);
+            await harness.assertConsistency?.discount?.(updated);
           } catch (e) {
             threw = true;
             caught = e;
@@ -1139,10 +1187,12 @@ export function registerDiscountsAutomatedSuite(
           redemptionLimit: 10,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         expect(d.active).toBe(true);
         const archived = await provider.discounts.deactivate({ id: d.id });
         expect(archived).not.toBeNull();
         expectIsDiscount(archived);
+        await harness.assertConsistency?.discount?.(archived);
         expect(archived.id).toBe(d.id);
         expect(archived.active).toBe(false);
         expect(archived.code).toBe(d.code);
@@ -1157,7 +1207,11 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
-        await provider.discounts.deactivate({ id: d.id });
+        await harness.assertConsistency?.discount?.(d);
+        const deactivated = await provider.discounts.deactivate({ id: d.id });
+        if (deactivated !== null) {
+          await harness.assertConsistency?.discount?.(deactivated);
+        }
         const got = await provider.discounts.get({ id: d.id });
         expect(got).not.toBeNull();
         expectIsDiscount(got);
@@ -1177,8 +1231,12 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         const first = await provider.discounts.deactivate({ id: d.id });
         expect(first).not.toBeNull();
+        if (first !== null) {
+          await harness.assertConsistency?.discount?.(first);
+        }
         let second: ProviderDiscount | null = null;
         await expect(
           (async () => {
@@ -1188,6 +1246,7 @@ export function registerDiscountsAutomatedSuite(
         if (second !== null) {
           expect((second as ProviderDiscount).id).toBe(d.id);
           expect((second as ProviderDiscount).active).toBe(false);
+          await harness.assertConsistency?.discount?.(second);
         }
       });
 
@@ -1228,11 +1287,16 @@ export function registerDiscountsAutomatedSuite(
           redemptionLimit: 5,
         });
         track(d.id);
-        await provider.discounts.deactivate({ id: d.id });
+        await harness.assertConsistency?.discount?.(d);
+        const deactivated = await provider.discounts.deactivate({ id: d.id });
+        if (deactivated !== null) {
+          await harness.assertConsistency?.discount?.(deactivated);
+        }
 
         const activated = await provider.discounts.activate({ id: d.id });
         expect(activated).not.toBeNull();
         expectIsDiscount(activated);
+        await harness.assertConsistency?.discount?.(activated);
         expect(activated.id).toBe(d.id);
         expect(activated.active).toBe(true);
         expect(activated.code).toBe(d.code);
@@ -1255,6 +1319,7 @@ export function registerDiscountsAutomatedSuite(
           duration: once,
         });
         track(d.id);
+        await harness.assertConsistency?.discount?.(d);
         let result: ProviderDiscount | null = null;
         await expect(
           (async () => {
@@ -1264,6 +1329,7 @@ export function registerDiscountsAutomatedSuite(
         if (result !== null) {
           expect((result as ProviderDiscount).id).toBe(d.id);
           expect((result as ProviderDiscount).active).toBe(true);
+          await harness.assertConsistency?.discount?.(result);
         }
       });
 

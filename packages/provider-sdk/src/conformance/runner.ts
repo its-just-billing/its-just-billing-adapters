@@ -1,5 +1,6 @@
 import type { ConformanceSuite, ProviderTestHarness } from './harness.js';
 import { registerAutomatedSuite } from './suites/automated/index.js';
+import { registerFixtureSuite } from './suites/fixture/index.js';
 import { registerSelfSetupSuite } from './suites/self-setup/index.js';
 import { registerSemiManualSuite } from './suites/semi-manual/index.js';
 
@@ -41,6 +42,9 @@ export function describeConformance(
         break;
       case 'semi-manual':
         registerSemiManualSuite(label, factory);
+        break;
+      case 'fixture':
+        registerFixtureSuite(label, factory);
         break;
     }
   }

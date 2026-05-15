@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderEventSchema } from '../../models/event.js';
+import { ProviderEventSchema, type ProviderEvent } from '../../models/event.js';
 
 export const WebhooksVerifyInputSchema = z
   .object({
@@ -15,4 +15,5 @@ export const WebhooksVerifyInputSchema = z
 export const WebhooksVerifyOutputSchema = ProviderEventSchema;
 
 export type WebhooksVerifyInput = z.infer<typeof WebhooksVerifyInputSchema>;
-export type WebhooksVerifyOutput = z.infer<typeof WebhooksVerifyOutputSchema>;
+export type WebhooksVerifyOutput<TPayload = unknown, TRaw = unknown> =
+  ProviderEvent<TPayload, TRaw>;

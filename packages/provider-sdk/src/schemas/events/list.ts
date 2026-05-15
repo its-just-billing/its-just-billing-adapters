@@ -1,6 +1,10 @@
 import { z } from '../../zod.js';
-import { ProviderEventSchema, ProviderEventTypeSchema } from '../../models/event.js';
-import { pageOf } from '../../models/page.js';
+import {
+  ProviderEventSchema,
+  ProviderEventTypeSchema,
+  type ProviderEvent,
+} from '../../models/event.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const EventsListInputSchema = PaginationInputSchema.extend({
@@ -13,4 +17,5 @@ export const EventsListInputSchema = PaginationInputSchema.extend({
 export const EventsListOutputSchema = pageOf(ProviderEventSchema, 'EventsPage');
 
 export type EventsListInput = z.infer<typeof EventsListInputSchema>;
-export type EventsListOutput = z.infer<typeof EventsListOutputSchema>;
+export type EventsListOutput<TPayload = unknown, TRaw = unknown> =
+  Page<ProviderEvent<TPayload, TRaw>>;

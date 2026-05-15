@@ -1,6 +1,9 @@
 import { z } from '../../zod.js';
 import { ProviderEventTypeSchema } from '../../models/event.js';
-import { ProviderWebhookEndpointSchema } from '../../models/webhook.js';
+import {
+  ProviderWebhookEndpointSchema,
+  type ProviderWebhookEndpoint,
+} from '../../models/webhook.js';
 
 export const WebhooksCreateEndpointInputSchema = z
   .object({
@@ -17,4 +20,6 @@ export const WebhooksCreateEndpointOutputSchema = ProviderWebhookEndpointSchema.
 });
 
 export type WebhooksCreateEndpointInput = z.infer<typeof WebhooksCreateEndpointInputSchema>;
-export type WebhooksCreateEndpointOutput = z.infer<typeof WebhooksCreateEndpointOutputSchema>;
+export type WebhooksCreateEndpointOutput<TRaw = unknown> = ProviderWebhookEndpoint<TRaw> & {
+  secret: string | null;
+};

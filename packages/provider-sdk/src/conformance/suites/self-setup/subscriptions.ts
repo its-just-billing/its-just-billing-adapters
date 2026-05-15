@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ProviderConflictError, ProviderConstraintError } from '../../../errors/index.js';
 import type { BillingProvider, ProviderSubscription } from '../../../index.js';
-import {
-  ProviderConflictError,
-  ProviderConstraintError,
-} from '../../../errors/index.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { lazySkipIf } from '../../skip-if.js';
 
 /**
  * Registers the subscriptions self-setup conformance suite. Every test here
@@ -113,10 +111,12 @@ export function registerSubscriptionsSelfSetupSuite(
   async function getSubscription(harness: ProviderTestHarness): Promise<ProviderSubscription> {
     if (!harness.setup?.createSubscription) throw new Error('precondition');
     const customer = await harness.provider.customers.create({});
+    await harness.assertConsistency?.customer?.(customer);
     const product = await harness.provider.products.create({
       name: 'fixture',
       taxCategory: 'saas',
     });
+    await harness.assertConsistency?.product?.(product);
     const price = await harness.provider.prices.create({
       productId: product.id,
       currency: 'usd',
@@ -124,10 +124,13 @@ export function registerSubscriptionsSelfSetupSuite(
       unitAmount: 999,
       interval: 'month',
     } as any);
-    return harness.setup.createSubscription({
+    await harness.assertConsistency?.price?.(price);
+    const sub = await harness.setup.createSubscription({
       customerId: customer.id,
       priceId: price.id,
     });
+    await harness.assertConsistency?.subscription?.(sub);
+    return sub;
   }
 
   function approxEqualDate(a: Date, b: Date, toleranceMs = 5 * 60 * 1000): boolean {
@@ -151,7 +154,7 @@ export function registerSubscriptionsSelfSetupSuite(
     // subscriptions.list (happy path)
     // -------------------------------------------------------------------------
     describe('subscriptions.list', () => {
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'returns the active subscription for the owning customer',
         async () => {
           const sub = await getSubscription(harness);
@@ -163,7 +166,7 @@ export function registerSubscriptionsSelfSetupSuite(
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'filters by status correctly',
         async () => {
           const sub = await getSubscription(harness);
@@ -184,7 +187,7 @@ export function registerSubscriptionsSelfSetupSuite(
     // subscriptions.get (happy path)
     // -------------------------------------------------------------------------
     describe('subscriptions.get', () => {
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'returns the full ProviderSubscription for an existing id',
         async () => {
           const sub = await getSubscription(harness);
@@ -200,7 +203,7 @@ export function registerSubscriptionsSelfSetupSuite(
     // subscriptions.cancel (happy path)
     // -------------------------------------------------------------------------
     describe('subscriptions.cancel', () => {
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "when:'at_period_end' sets cancelAtPeriodEnd=true and schedules a cancel pendingChange",
         async () => {
           const sub = await getSubscription(harness);
@@ -209,20 +212,16 @@ export function registerSubscriptionsSelfSetupSuite(
             when: 'at_period_end',
           });
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.cancelAtPeriodEnd).toBe(true);
           expect(out.pendingChange).not.toBeNull();
           expect(out.pendingChange?.kind).toBe('cancel');
           expect(out.pendingChange?.effectiveAt).toBeInstanceOf(Date);
-          expect(
-            approxEqualDate(
-              out.pendingChange!.effectiveAt,
-              out.currentPeriodEnd,
-            ),
-          ).toBe(true);
+          expect(approxEqualDate(out.pendingChange!.effectiveAt, out.currentPeriodEnd)).toBe(true);
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "when:'immediately' sets canceledAt, clears pendingChange, cancelAtPeriodEnd=false",
         async () => {
           const sub = await getSubscription(harness);
@@ -231,6 +230,7 @@ export function registerSubscriptionsSelfSetupSuite(
             when: 'immediately',
           });
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.canceledAt).toBeInstanceOf(Date);
           expect(out.pendingChange).toBeNull();
           expect(out.cancelAtPeriodEnd).toBe(false);
@@ -242,25 +242,29 @@ export function registerSubscriptionsSelfSetupSuite(
     // subscriptions.change (happy path)
     // -------------------------------------------------------------------------
     describe('subscriptions.change', () => {
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "when:'immediately' replaces items and clears pendingChange",
         async () => {
           const sub = await getSubscription(harness);
           // Create a new price to swap to.
           const product = await provider.products.create({ name: 'swap', taxCategory: 'saas' });
+          await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
             kind: 'recurring',
             unitAmount: 1999,
             interval: 'month',
+            quantity: { min: 1, max: 10 },
           } as any);
+          await harness.assertConsistency?.price?.(newPrice);
           const out = await provider.subscriptions.change({
             id: sub.id,
             items: [{ priceId: newPrice.id, quantity: 2 }],
             when: 'immediately',
           } as any);
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.pendingChange).toBeNull();
           expect(out.items.length).toBe(1);
           expect(out.items[0]?.priceId).toBe(newPrice.id);
@@ -268,7 +272,7 @@ export function registerSubscriptionsSelfSetupSuite(
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "when:'at_period_end' schedules a price_change pendingChange and leaves current items unchanged",
         async () => {
           const sub = await getSubscription(harness);
@@ -277,13 +281,16 @@ export function registerSubscriptionsSelfSetupSuite(
           const beforeItems = (before as ProviderSubscription).items;
 
           const product = await provider.products.create({ name: 'swap2', taxCategory: 'saas' });
+          await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
             kind: 'recurring',
             unitAmount: 2999,
             interval: 'month',
+            quantity: { min: 1, max: 10 },
           } as any);
+          await harness.assertConsistency?.price?.(newPrice);
 
           const out = await provider.subscriptions.change({
             id: sub.id,
@@ -291,15 +298,11 @@ export function registerSubscriptionsSelfSetupSuite(
             when: 'at_period_end',
           } as any);
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.pendingChange).not.toBeNull();
           expect(out.pendingChange?.kind).toBe('price_change');
           expect(out.pendingChange?.effectiveAt).toBeInstanceOf(Date);
-          expect(
-            approxEqualDate(
-              out.pendingChange!.effectiveAt,
-              out.currentPeriodEnd,
-            ),
-          ).toBe(true);
+          expect(approxEqualDate(out.pendingChange!.effectiveAt, out.currentPeriodEnd)).toBe(true);
           expect(Array.isArray(out.pendingChange?.items)).toBe(true);
           expect(out.pendingChange?.items?.[0]?.priceId).toBe(newPrice.id);
           expect(out.pendingChange?.items?.[0]?.quantity).toBe(3);
@@ -311,7 +314,7 @@ export function registerSubscriptionsSelfSetupSuite(
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "succeeds with prorationBehavior:'create_prorations'",
         async () => {
           const sub = await getSubscription(harness);
@@ -319,6 +322,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'pro-create',
             taxCategory: 'saas',
           });
+          await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -326,16 +330,18 @@ export function registerSubscriptionsSelfSetupSuite(
             unitAmount: 1499,
             interval: 'month',
           } as any);
+          await harness.assertConsistency?.price?.(newPrice);
           const out = await provider.subscriptions.change({
             id: sub.id,
             items: [{ priceId: newPrice.id }],
             prorationBehavior: 'create_prorations',
           } as any);
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         "succeeds with prorationBehavior:'none'",
         async () => {
           const sub = await getSubscription(harness);
@@ -343,6 +349,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'pro-none',
             taxCategory: 'saas',
           });
+          await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -350,12 +357,14 @@ export function registerSubscriptionsSelfSetupSuite(
             unitAmount: 1499,
             interval: 'month',
           } as any);
+          await harness.assertConsistency?.price?.(newPrice);
           const out = await provider.subscriptions.change({
             id: sub.id,
             items: [{ priceId: newPrice.id }],
             prorationBehavior: 'none',
           } as any);
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
         },
       );
     });
@@ -364,7 +373,7 @@ export function registerSubscriptionsSelfSetupSuite(
     // subscriptions.cancelScheduledChange (happy path)
     // -------------------------------------------------------------------------
     describe('subscriptions.cancelScheduledChange', () => {
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'clears a scheduled price_change pendingChange',
         async () => {
           const sub = await getSubscription(harness);
@@ -372,6 +381,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'sched-price',
             taxCategory: 'saas',
           });
+          await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
@@ -379,21 +389,24 @@ export function registerSubscriptionsSelfSetupSuite(
             unitAmount: 1299,
             interval: 'month',
           } as any);
+          await harness.assertConsistency?.price?.(newPrice);
           const scheduled = await provider.subscriptions.change({
             id: sub.id,
             items: [{ priceId: newPrice.id }],
             when: 'at_period_end',
           } as any);
+          await harness.assertConsistency?.subscription?.(scheduled);
           expect(scheduled.pendingChange).not.toBeNull();
           expect(scheduled.pendingChange?.kind).toBe('price_change');
 
           const out = await provider.subscriptions.cancelScheduledChange({ id: sub.id });
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.pendingChange).toBeNull();
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'clears a scheduled cancel (cancelAtPeriodEnd flips false, pendingChange null)',
         async () => {
           const sub = await getSubscription(harness);
@@ -401,32 +414,33 @@ export function registerSubscriptionsSelfSetupSuite(
             id: sub.id,
             when: 'at_period_end',
           });
+          await harness.assertConsistency?.subscription?.(scheduled);
           expect(scheduled.cancelAtPeriodEnd).toBe(true);
           expect(scheduled.pendingChange).not.toBeNull();
 
           const out = await provider.subscriptions.cancelScheduledChange({ id: sub.id });
           expectIsSubscription(out);
+          await harness.assertConsistency?.subscription?.(out);
           expect(out.pendingChange).toBeNull();
           expect(out.cancelAtPeriodEnd).toBe(false);
           expect(out.canceledAt).toBeNull();
         },
       );
 
-      it.skipIf(!harness?.setup?.createSubscription)(
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
         'on a subscription with no pending change: success (no-op) OR 409/422',
         async () => {
           const sub = await getSubscription(harness);
           expect(sub.pendingChange).toBeNull();
 
-          const result = await provider.subscriptions
-            .cancelScheduledChange({ id: sub.id })
-            .then(
-              (value) => ({ ok: true as const, value }),
-              (err: unknown) => ({ ok: false as const, err }),
-            );
+          const result = await provider.subscriptions.cancelScheduledChange({ id: sub.id }).then(
+            (value) => ({ ok: true as const, value }),
+            (err: unknown) => ({ ok: false as const, err }),
+          );
 
           if (result.ok) {
             expectIsSubscription(result.value);
+            await harness.assertConsistency?.subscription?.(result.value);
             expect(result.value.pendingChange).toBeNull();
           } else {
             const err = result.err;

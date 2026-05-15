@@ -2,8 +2,9 @@ import { z } from '../../zod.js';
 import {
   BillingDocumentKindSchema,
   ProviderBillingDocumentSchema,
+  type ProviderBillingDocument,
 } from '../../models/billing-document.js';
-import { pageOf } from '../../models/page.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const BillingDocumentsListInputSchema = PaginationInputSchema.extend({
@@ -19,4 +20,4 @@ export const BillingDocumentsListOutputSchema = pageOf(
 );
 
 export type BillingDocumentsListInput = z.infer<typeof BillingDocumentsListInputSchema>;
-export type BillingDocumentsListOutput = z.infer<typeof BillingDocumentsListOutputSchema>;
+export type BillingDocumentsListOutput<TRaw = unknown> = Page<ProviderBillingDocument<TRaw>>;

@@ -64,7 +64,8 @@
               },
               "updatedAt": {
                 "type": "string"
-              }
+              },
+              "raw": {}
             },
             "required": [
               "id",
@@ -457,7 +458,8 @@
                                 },
                                 "updatedAt": {
                                   "type": "string"
-                                }
+                                },
+                                "raw": {}
                               },
                               "required": [
                                 "id",
@@ -735,7 +737,8 @@
                                 },
                                 "updatedAt": {
                                   "type": "string"
-                                }
+                                },
+                                "raw": {}
                               },
                               "required": [
                                 "id",
@@ -905,7 +908,8 @@
                                 },
                                 "updatedAt": {
                                   "type": "string"
-                                }
+                                },
+                                "raw": {}
                               },
                               "required": [
                                 "id",

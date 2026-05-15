@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type {
   BillingProvider,
   ProviderEventType,
@@ -7,8 +7,8 @@ import type {
 
 type WebhooksCreateEndpointOutput = ProviderWebhookEndpoint & { secret: string | null };
 import {
-  ProviderValidationError,
   ProviderNotFoundError,
+  ProviderValidationError,
   WebhookSignatureError,
 } from '../../../errors/index.js';
 import type { ProviderTestHarness } from '../../harness.js';
@@ -159,6 +159,7 @@ export function registerWebhooksAutomatedSuite(
         const created = await provider.webhooks.createEndpoint({ url, eventTypes });
         track(created.id);
         expectIsCreateOutput(created);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         expect(created.url).toBe(url);
         for (const t of eventTypes) {
           expect(created.eventTypes).toContain(t);
@@ -172,6 +173,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created', 'subscription.updated'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         const list = await provider.webhooks.listEndpoints();
         expectIsPage<ProviderWebhookEndpoint>(list);
         expect(list.data.some((e) => e.id === created.id)).toBe(true);
@@ -237,12 +239,14 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created', 'subscription.updated'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         const newUrl = uniqueUrl();
         const updated = await provider.webhooks.updateEndpoint({
           id: created.id,
           url: newUrl,
         });
         expectIsEndpoint(updated);
+        await harness.assertConsistency?.webhookEndpoint?.(updated);
         expect(updated.id).toBe(created.id);
         expect(updated.url).toBe(newUrl);
         // eventTypes preserved.
@@ -257,6 +261,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         const newEventTypes: ProviderEventType[] = [
           'subscription.created',
           'subscription.canceled',
@@ -266,6 +271,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: newEventTypes,
         });
         expectIsEndpoint(updated);
+        await harness.assertConsistency?.webhookEndpoint?.(updated);
         expect(updated.id).toBe(created.id);
         expect(updated.url).toBe(created.url);
         // The returned eventTypes reflect the new list. Order is not guaranteed.
@@ -282,12 +288,14 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
 
         const off = await provider.webhooks.updateEndpoint({
           id: created.id,
           active: false,
         });
         expectIsEndpoint(off);
+        await harness.assertConsistency?.webhookEndpoint?.(off);
         expect(off.id).toBe(created.id);
         expect(off.active).toBe(false);
 
@@ -296,6 +304,7 @@ export function registerWebhooksAutomatedSuite(
           active: true,
         });
         expectIsEndpoint(on);
+        await harness.assertConsistency?.webhookEndpoint?.(on);
         expect(on.id).toBe(created.id);
         expect(on.active).toBe(true);
       });
@@ -306,8 +315,10 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         const updated = await provider.webhooks.updateEndpoint({ id: created.id });
         expectIsEndpoint(updated);
+        await harness.assertConsistency?.webhookEndpoint?.(updated);
         expect(updated.id).toBe(created.id);
         expect(updated.url).toBe(created.url);
         for (const t of created.eventTypes) {
@@ -399,6 +410,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         expect(created.active).toBe(true);
 
         const deactivated = await provider.webhooks.deactivateEndpoint({
@@ -406,11 +418,13 @@ export function registerWebhooksAutomatedSuite(
         });
         expect(deactivated).not.toBeNull();
         expect((deactivated as ProviderWebhookEndpoint).active).toBe(false);
+        await harness.assertConsistency?.webhookEndpoint?.(deactivated as ProviderWebhookEndpoint);
 
         const activated = await provider.webhooks.activateEndpoint({ id: created.id });
         expect(activated).not.toBeNull();
         const a = activated as ProviderWebhookEndpoint;
         expectIsEndpoint(a);
+        await harness.assertConsistency?.webhookEndpoint?.(a);
         expect(a.id).toBe(created.id);
         expect(a.active).toBe(true);
       });
@@ -457,6 +471,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
 
         const deactivated = await provider.webhooks.deactivateEndpoint({
           id: created.id,
@@ -464,6 +479,7 @@ export function registerWebhooksAutomatedSuite(
         expect(deactivated).not.toBeNull();
         const d = deactivated as ProviderWebhookEndpoint;
         expectIsEndpoint(d);
+        await harness.assertConsistency?.webhookEndpoint?.(d);
         expect(d.id).toBe(created.id);
         expect(d.active).toBe(false);
 
@@ -486,9 +502,9 @@ export function registerWebhooksAutomatedSuite(
         ['string', 'wh_x'],
         ['number', 42],
       ])('rejects non-object input (%s)', async (_label, value) => {
-        await expect(
-          provider.webhooks.deactivateEndpoint(value as any),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.webhooks.deactivateEndpoint(value as any)).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: id ----
@@ -498,9 +514,9 @@ export function registerWebhooksAutomatedSuite(
         ['number', { id: 42 as any }],
         ['null', { id: null as any }],
       ])('rejects invalid id (%s)', async (_label, input) => {
-        await expect(
-          provider.webhooks.deactivateEndpoint(input as any),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.webhooks.deactivateEndpoint(input as any)).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 
@@ -514,6 +530,7 @@ export function registerWebhooksAutomatedSuite(
           eventTypes: ['customer.created'],
         });
         track(created.id);
+        await harness.assertConsistency?.webhookEndpoint?.(created);
         const out = await provider.webhooks.deleteEndpoint({ id: created.id });
         expect(out).toEqual({ deleted: true });
       });

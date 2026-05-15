@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ProviderValidationError } from '../../../errors/index.js';
 import type {
   BillingProvider,
+  EventResourceKind,
   ProviderEvent,
   ProviderEventType,
-  EventResourceKind,
 } from '../../../index.js';
-import { ProviderValidationError } from '../../../errors/index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -175,9 +175,9 @@ export function registerEventsAutomatedSuite(
         ['non-string element', [42]],
         ['null', null],
       ])('rejects invalid types (%s)', async (_label, value) => {
-        await expect(
-          provider.events.list({ types: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.events.list({ types: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: since ----
@@ -186,9 +186,9 @@ export function registerEventsAutomatedSuite(
         ['number (epoch ms)', 1736294400000],
         ['null', null],
       ])('rejects invalid since (%s)', async (_label, value) => {
-        await expect(
-          provider.events.list({ since: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.events.list({ since: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: cursor ----
@@ -196,9 +196,9 @@ export function registerEventsAutomatedSuite(
         ['empty string', ''],
         ['number', 123],
       ])('rejects invalid cursor (%s)', async (_label, value) => {
-        await expect(
-          provider.events.list({ cursor: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.events.list({ cursor: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: limit ----
@@ -211,9 +211,9 @@ export function registerEventsAutomatedSuite(
         ['too large', 101],
         ['string', '10'],
       ])('rejects invalid limit (%s)', async (_label, value) => {
-        await expect(
-          provider.events.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.events.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 

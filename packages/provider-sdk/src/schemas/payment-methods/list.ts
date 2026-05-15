@@ -1,6 +1,9 @@
 import { z } from '../../zod.js';
-import { ProviderPaymentMethodSchema } from '../../models/payment-method.js';
-import { pageOf } from '../../models/page.js';
+import {
+  ProviderPaymentMethodSchema,
+  type ProviderPaymentMethod,
+} from '../../models/payment-method.js';
+import { pageOf, type Page } from '../../models/page.js';
 
 export const PaymentMethodsListInputSchema = z
   .object({ customerId: z.string().min(1) })
@@ -12,4 +15,4 @@ export const PaymentMethodsListOutputSchema = pageOf(
 );
 
 export type PaymentMethodsListInput = z.infer<typeof PaymentMethodsListInputSchema>;
-export type PaymentMethodsListOutput = z.infer<typeof PaymentMethodsListOutputSchema>;
+export type PaymentMethodsListOutput<TRaw = unknown> = Page<ProviderPaymentMethod<TRaw>>;

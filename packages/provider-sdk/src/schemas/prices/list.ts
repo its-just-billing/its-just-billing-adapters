@@ -1,6 +1,6 @@
 import { z } from '../../zod.js';
-import { ProviderPriceSchema } from '../../models/price.js';
-import { pageOf } from '../../models/page.js';
+import { ProviderPriceSchema, type ProviderPrice } from '../../models/price.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const PricesListInputSchema = PaginationInputSchema.extend({
@@ -13,4 +13,4 @@ export const PricesListInputSchema = PaginationInputSchema.extend({
 export const PricesListOutputSchema = pageOf(ProviderPriceSchema, 'PricesPage');
 
 export type PricesListInput = z.infer<typeof PricesListInputSchema>;
-export type PricesListOutput = z.infer<typeof PricesListOutputSchema>;
+export type PricesListOutput<TRaw = unknown> = Page<ProviderPrice<TRaw>>;

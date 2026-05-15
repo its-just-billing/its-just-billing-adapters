@@ -5,7 +5,7 @@ import type {
   PurchasesListOutput,
 } from '../schemas/purchases/index.js';
 
-export interface Purchases {
-  list(input?: PurchasesListInput): Promise<PurchasesListOutput>;
-  get(input: PurchasesGetInput): Promise<PurchasesGetOutput>;
+export interface Purchases<TRaw = unknown> {
+  list(input?: PurchasesListInput): Promise<PurchasesListOutput<TRaw>>;
+  get(input: PurchasesGetInput): Promise<PurchasesGetOutput<TRaw>>;
 }

@@ -3,6 +3,7 @@ import {
   DiscountBenefitSchema,
   DiscountDurationSchema,
   ProviderDiscountSchema,
+  type ProviderDiscount,
 } from '../../models/discount.js';
 import { MetadataSchema } from '../../models/metadata.js';
 
@@ -27,4 +28,4 @@ export const DiscountsCreateInputSchema = z
 export const DiscountsCreateOutputSchema = ProviderDiscountSchema;
 
 export type DiscountsCreateInput = z.infer<typeof DiscountsCreateInputSchema>;
-export type DiscountsCreateOutput = z.infer<typeof DiscountsCreateOutputSchema>;
+export type DiscountsCreateOutput<TRaw = unknown> = ProviderDiscount<TRaw>;

@@ -43,9 +43,13 @@ export const ProviderDiscountSchema = z
       .nullable(),
     metadata: MetadataSchema,
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderDiscount', {
     description: 'Normalized discount/coupon. May expose a public code or be discount-id only.',
   });
 
-export type ProviderDiscount = z.infer<typeof ProviderDiscountSchema>;
+export type ProviderDiscount<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderDiscountSchema>,
+  'raw'
+> & { raw?: TRaw };

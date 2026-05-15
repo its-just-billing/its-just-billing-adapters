@@ -1,11 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { BillingProvider, ProviderProduct } from '../../../index.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  ProviderValidationError,
   MetadataCollisionError,
   ProviderNotFoundError,
+  ProviderValidationError,
 } from '../../../errors/index.js';
+import type { BillingProvider, ProviderProduct } from '../../../index.js';
+import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { nonNull } from '../../skip-if.js';
 
 /**
  * Registers the products automated conformance suite. All scenarios in the
@@ -135,6 +137,7 @@ export function registerProductsAutomatedSuite(
         const p = await provider.products.create({ name, taxCategory: 'saas' });
         track(p.id);
         expectIsProduct(p);
+        await harness.assertConsistency?.product?.(p);
         expect(p.name).toBe(name);
         expect(p.description).toBeNull();
         expect(p.active).toBe(true);
@@ -155,6 +158,7 @@ export function registerProductsAutomatedSuite(
         });
         track(p.id);
         expectIsProduct(p);
+        await harness.assertConsistency?.product?.(p);
         expect(p.name).toBe(name);
         expect(p.description).toBe(description);
         expect(p.active).toBe(true);
@@ -173,6 +177,7 @@ export function registerProductsAutomatedSuite(
         } as any);
         track(p.id);
         expectIsProduct(p);
+        await harness.assertConsistency?.product?.(p);
         expect(p.active).toBe(true);
       });
 
@@ -185,6 +190,7 @@ export function registerProductsAutomatedSuite(
         });
         track(p.id);
         expectIsProduct(p);
+        await harness.assertConsistency?.product?.(p);
         expect(p.description).toBeNull();
       });
 
@@ -197,6 +203,7 @@ export function registerProductsAutomatedSuite(
         });
         track(p.id);
         expectIsProduct(p);
+        await harness.assertConsistency?.product?.(p);
         expect(p.description).toBe('');
       });
 
@@ -206,6 +213,8 @@ export function registerProductsAutomatedSuite(
         const b = await provider.products.create({ name, taxCategory: 'saas' });
         track(a.id);
         track(b.id);
+        await harness.assertConsistency?.product?.(a);
+        await harness.assertConsistency?.product?.(b);
         expect(a.id).not.toBe(b.id);
       });
 
@@ -215,6 +224,7 @@ export function registerProductsAutomatedSuite(
         const created = await provider.products.create({ name, taxCategory: 'saas' });
         track(created.id);
         expectIsProduct(created);
+        await harness.assertConsistency?.product?.(created);
         expect(created.taxCategory).toBe('saas');
         const got = await provider.products.get({ id: created.id });
         expect(got).not.toBeNull();
@@ -227,6 +237,7 @@ export function registerProductsAutomatedSuite(
         const created = await provider.products.create({ name, taxCategory: 'ebooks' });
         track(created.id);
         expectIsProduct(created);
+        await harness.assertConsistency?.product?.(created);
         expect(created.taxCategory).toBe('ebooks');
       });
 
@@ -374,8 +385,9 @@ export function registerProductsAutomatedSuite(
       it('returns a deep-equal record for an existing id', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         const got = await provider.products.get({ id: p.id });
-        expect(got).toEqual(p);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(p));
       });
 
       it('returns null (does not throw) for a missing id', async () => {
@@ -428,6 +440,8 @@ export function registerProductsAutomatedSuite(
         const b = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(a.id);
         track(b.id);
+        await harness.assertConsistency?.product?.(a);
+        await harness.assertConsistency?.product?.(b);
         const out = await provider.products.list({ active: true, limit: 100 });
         expectIsPage<ProviderProduct>(out);
         const ids = new Set(out.data.map((p) => p.id));
@@ -442,8 +456,12 @@ export function registerProductsAutomatedSuite(
       it('after deactivate, list({active:false}) includes A and list({active:true}) excludes A', async () => {
         const a = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(a.id);
+        await harness.assertConsistency?.product?.(a);
         const archived = await provider.products.deactivate({ id: a.id });
         expect(archived).not.toBeNull();
+        if (archived !== null) {
+          await harness.assertConsistency?.product?.(archived);
+        }
 
         const inactive = await provider.products.list({ active: false, limit: 100 });
         expectIsPage<ProviderProduct>(inactive);
@@ -465,6 +483,7 @@ export function registerProductsAutomatedSuite(
         for (let i = 0; i < 2; i++) {
           const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
           track(p.id);
+          await harness.assertConsistency?.product?.(p);
         }
         const out = await provider.products.list({ limit: 1 });
         expectIsPage<ProviderProduct>(out);
@@ -483,9 +502,9 @@ export function registerProductsAutomatedSuite(
         ['object', { x: 1 }],
         ['null', null],
       ])('rejects non-string cursor (%s)', async (_label, value) => {
-        await expect(
-          provider.products.list({ cursor: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.products.list({ cursor: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: limit ----
@@ -498,9 +517,9 @@ export function registerProductsAutomatedSuite(
         ['NaN', Number.NaN],
         ['null', null],
       ])('rejects invalid limit (%s)', async (_label, value) => {
-        await expect(
-          provider.products.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.products.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: active ----
@@ -509,9 +528,9 @@ export function registerProductsAutomatedSuite(
         ['number 1', 1],
         ['null', null],
       ])('rejects non-boolean active (%s)', async (_label, value) => {
-        await expect(
-          provider.products.list({ active: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.products.list({ active: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 
@@ -527,10 +546,12 @@ export function registerProductsAutomatedSuite(
           metadata: { plan: 'silver' },
         });
         track(original.id);
+        await harness.assertConsistency?.product?.(original);
 
         const renamed = `${original.name}-renamed`;
         const u = await provider.products.update({ id: original.id, name: renamed });
         expectIsProduct(u);
+        await harness.assertConsistency?.product?.(u);
         expect(u.id).toBe(original.id);
         expect(u.name).toBe(renamed);
         expect(u.description).toBe('Original description');
@@ -547,8 +568,10 @@ export function registerProductsAutomatedSuite(
           description: 'will be cleared',
         });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         const u = await provider.products.update({ id: p.id, description: null });
         expectIsProduct(u);
+        await harness.assertConsistency?.product?.(u);
         expect(u.description).toBeNull();
         expect(u.createdAt.getTime()).toBe(p.createdAt.getTime());
       });
@@ -556,10 +579,12 @@ export function registerProductsAutomatedSuite(
       it('update silently strips `active` (use deactivate / activate instead)', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         // `active` is not part of the update input schema. Zod strips it, so
         // the call succeeds and the resource remains active.
         const u = await provider.products.update({ id: p.id, active: false } as any);
         expectIsProduct(u);
+        await harness.assertConsistency?.product?.(u);
         expect(u.active).toBe(true);
         expect(u.id).toBe(p.id);
         expect(u.createdAt.getTime()).toBe(p.createdAt.getTime());
@@ -573,11 +598,13 @@ export function registerProductsAutomatedSuite(
           metadata: { keep: 'no', also: 'no' },
         });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         const u = await provider.products.update({
           id: p.id,
           metadata: { plan: 'gold' },
         });
         expectIsProduct(u);
+        await harness.assertConsistency?.product?.(u);
         expect(u.metadata.plan).toBe('gold');
       });
 
@@ -589,8 +616,10 @@ export function registerProductsAutomatedSuite(
           metadata: { a: '1' },
         });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         const u = await provider.products.update({ id: p.id });
         expectIsProduct(u);
+        await harness.assertConsistency?.product?.(u);
         expect(u.id).toBe(p.id);
         expect(u.name).toBe(p.name);
         expect(u.description).toBe(p.description);
@@ -706,11 +735,13 @@ export function registerProductsAutomatedSuite(
           metadata: { tier: 'pro' },
         });
         track(created.id);
+        await harness.assertConsistency?.product?.(created);
 
         const archived = await provider.products.deactivate({ id: created.id });
         expect(archived).not.toBeNull();
         const a = archived as ProviderProduct;
         expectIsProduct(a);
+        await harness.assertConsistency?.product?.(a);
         expect(a.id).toBe(created.id);
         expect(a.active).toBe(false);
         expect(a.name).toBe(created.name);
@@ -723,7 +754,11 @@ export function registerProductsAutomatedSuite(
       it('after deactivate: get(id) still returns the record (not null) with active=false', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
-        await provider.products.deactivate({ id: p.id });
+        await harness.assertConsistency?.product?.(p);
+        const d = await provider.products.deactivate({ id: p.id });
+        if (d !== null) {
+          await harness.assertConsistency?.product?.(d);
+        }
         const got = await provider.products.get({ id: p.id });
         expect(got).not.toBeNull();
         const g = got as ProviderProduct;
@@ -735,7 +770,11 @@ export function registerProductsAutomatedSuite(
       it('after deactivate: list({active:false}) includes; list({active:true}) excludes', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
-        await provider.products.deactivate({ id: p.id });
+        await harness.assertConsistency?.product?.(p);
+        const d = await provider.products.deactivate({ id: p.id });
+        if (d !== null) {
+          await harness.assertConsistency?.product?.(d);
+        }
 
         const inactive = await provider.products.list({ active: false, limit: 100 });
         expectIsPage<ProviderProduct>(inactive);
@@ -756,7 +795,11 @@ export function registerProductsAutomatedSuite(
       it('double-deactivate does not throw; returns null OR record with active=false', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
-        await provider.products.deactivate({ id: p.id });
+        await harness.assertConsistency?.product?.(p);
+        const first = await provider.products.deactivate({ id: p.id });
+        if (first !== null) {
+          await harness.assertConsistency?.product?.(first);
+        }
 
         let second: ProviderProduct | null = null;
         await expect(
@@ -767,6 +810,7 @@ export function registerProductsAutomatedSuite(
         if (second !== null) {
           const s = second as ProviderProduct;
           expectIsProduct(s);
+          await harness.assertConsistency?.product?.(s);
           expect(s.id).toBe(p.id);
           expect(s.active).toBe(false);
         }
@@ -809,15 +853,18 @@ export function registerProductsAutomatedSuite(
           metadata: { tier: 'pro' },
         });
         track(created.id);
+        await harness.assertConsistency?.product?.(created);
 
         const deactivated = await provider.products.deactivate({ id: created.id });
         expect(deactivated).not.toBeNull();
         expect((deactivated as ProviderProduct).active).toBe(false);
+        await harness.assertConsistency?.product?.(deactivated as ProviderProduct);
 
         const activated = await provider.products.activate({ id: created.id });
         expect(activated).not.toBeNull();
         const a = activated as ProviderProduct;
         expectIsProduct(a);
+        await harness.assertConsistency?.product?.(a);
         expect(a.id).toBe(created.id);
         expect(a.active).toBe(true);
         expect(a.name).toBe(created.name);
@@ -834,6 +881,7 @@ export function registerProductsAutomatedSuite(
       it('activating an already-active product does not throw (idempotent)', async () => {
         const p = await provider.products.create({ name: uniqueName(), taxCategory: 'saas' });
         track(p.id);
+        await harness.assertConsistency?.product?.(p);
         let result: ProviderProduct | null = null;
         await expect(
           (async () => {
@@ -843,6 +891,7 @@ export function registerProductsAutomatedSuite(
         if (result !== null) {
           const r = result as ProviderProduct;
           expectIsProduct(r);
+          await harness.assertConsistency?.product?.(r);
           expect(r.id).toBe(p.id);
           expect(r.active).toBe(true);
         }

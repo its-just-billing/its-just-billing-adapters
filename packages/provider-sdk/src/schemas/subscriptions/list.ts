@@ -1,6 +1,10 @@
 import { z } from '../../zod.js';
-import { ProviderSubscriptionSchema, SubscriptionStatusSchema } from '../../models/subscription.js';
-import { pageOf } from '../../models/page.js';
+import {
+  ProviderSubscriptionSchema,
+  SubscriptionStatusSchema,
+  type ProviderSubscription,
+} from '../../models/subscription.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const SubscriptionsListInputSchema = PaginationInputSchema.extend({
@@ -14,4 +18,4 @@ export const SubscriptionsListOutputSchema = pageOf(
 );
 
 export type SubscriptionsListInput = z.infer<typeof SubscriptionsListInputSchema>;
-export type SubscriptionsListOutput = z.infer<typeof SubscriptionsListOutputSchema>;
+export type SubscriptionsListOutput<TRaw = unknown> = Page<ProviderSubscription<TRaw>>;

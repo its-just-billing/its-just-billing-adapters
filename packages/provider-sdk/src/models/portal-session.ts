@@ -8,7 +8,11 @@ export const ProviderPortalSessionSchema = z
     returnUrl: z.string().url().nullable(),
     expiresAt: z.date().nullable(),
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderPortalSession');
 
-export type ProviderPortalSession = z.infer<typeof ProviderPortalSessionSchema>;
+export type ProviderPortalSession<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderPortalSessionSchema>,
+  'raw'
+> & { raw?: TRaw };

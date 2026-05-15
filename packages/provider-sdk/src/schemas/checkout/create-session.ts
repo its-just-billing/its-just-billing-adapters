@@ -1,16 +1,16 @@
-import { z } from '../../zod.js';
 import {
   CheckoutLineItemSchema,
-  ProviderCheckoutSessionSchema,
   type ProviderCheckoutSession,
+  ProviderCheckoutSessionSchema,
 } from '../../models/checkout-session.js';
 import { MetadataSchema } from '../../models/metadata.js';
+import { z } from '../../zod.js';
 
 const DiscountApplication = z
   .union([
-    z.object({ kind: z.literal('discountId'), discountId: z.string().min(1) }),
-    z.object({ kind: z.literal('code'), code: z.string().min(1) }),
-    z.object({ kind: z.literal('allowPromotionCodes') }),
+    z.object({ kind: z.literal('discountId'), discountId: z.string().min(1) }).strict(),
+    z.object({ kind: z.literal('code'), code: z.string().min(1) }).strict(),
+    z.object({ kind: z.literal('allowPromotionCodes') }).strict(),
   ])
   .openapi('CheckoutDiscountApplication');
 
@@ -28,5 +28,7 @@ export const CheckoutCreateSessionInputSchema = z
 export const CheckoutCreateSessionOutputSchema = ProviderCheckoutSessionSchema;
 
 export type CheckoutCreateSessionInput = z.infer<typeof CheckoutCreateSessionInputSchema>;
-export type CheckoutCreateSessionOutput<TPresentation = unknown> =
-  ProviderCheckoutSession<TPresentation>;
+export type CheckoutCreateSessionOutput<
+  TPresentation = unknown,
+  TRaw = unknown,
+> = ProviderCheckoutSession<TPresentation, TRaw>;

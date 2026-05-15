@@ -5,7 +5,7 @@ import type {
   EventsListOutput,
 } from '../schemas/events/index.js';
 
-export interface Events {
-  list(input?: EventsListInput): Promise<EventsListOutput>;
-  get(input: EventsGetInput): Promise<EventsGetOutput>;
+export interface Events<TPayload = unknown, TRaw = unknown> {
+  list(input?: EventsListInput): Promise<EventsListOutput<TPayload, TRaw>>;
+  get(input: EventsGetInput): Promise<EventsGetOutput<TPayload, TRaw>>;
 }

@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderProductSchema } from '../../models/product.js';
+import { ProviderProductSchema, type ProviderProduct } from '../../models/product.js';
 
 export const ProductsDeactivateInputSchema = z
   .object({ id: z.string().min(1) })
@@ -11,4 +11,4 @@ export const ProductsDeactivateInputSchema = z
 export const ProductsDeactivateOutputSchema = ProviderProductSchema.nullable();
 
 export type ProductsDeactivateInput = z.infer<typeof ProductsDeactivateInputSchema>;
-export type ProductsDeactivateOutput = z.infer<typeof ProductsDeactivateOutputSchema>;
+export type ProductsDeactivateOutput<TRaw = unknown> = ProviderProduct<TRaw> | null;

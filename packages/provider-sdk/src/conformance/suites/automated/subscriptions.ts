@@ -1,9 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ProviderNotFoundError, ProviderValidationError } from '../../../errors/index.js';
 import type { BillingProvider, ProviderCustomer } from '../../../index.js';
-import {
-  ProviderValidationError,
-  ProviderNotFoundError,
-} from '../../../errors/index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -40,20 +37,22 @@ export function registerSubscriptionsAutomatedSuite(
     // subscriptions.list
     // -------------------------------------------------------------------------
     describe('subscriptions.list', () => {
-      it('returns [] for a fresh customer with no subscriptions', async () => {
+      it('returns an empty page for a fresh customer with no subscriptions', async () => {
         const customer: ProviderCustomer = await provider.customers.create({});
         trackCustomer(customer.id);
         const out = await provider.subscriptions.list({ customerId: customer.id });
-        expect(Array.isArray(out)).toBe(true);
-        expect(out).toEqual([]);
+        expect(Array.isArray(out.data)).toBe(true);
+        expect(out.data).toEqual([]);
+        expect(out.nextCursor).toBeNull();
       });
 
-      it('returns [] (does not throw) for a non-existent customerId', async () => {
+      it('returns an empty page (does not throw) for a non-existent customerId', async () => {
         const out = await provider.subscriptions.list({
           customerId: 'cus_does_not_exist_xyz',
         });
-        expect(Array.isArray(out)).toBe(true);
-        expect(out).toEqual([]);
+        expect(Array.isArray(out.data)).toBe(true);
+        expect(out.data).toEqual([]);
+        expect(out.nextCursor).toBeNull();
       });
 
       // ---- validation: customerId ----
@@ -65,9 +64,9 @@ export function registerSubscriptionsAutomatedSuite(
         ['boolean', { customerId: true as any }],
         ['object', { customerId: { x: 1 } as any }],
       ])('rejects invalid customerId (%s)', async (_label, input) => {
-        await expect(
-          provider.subscriptions.list(input as any),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.subscriptions.list(input as any)).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: status ----
@@ -158,12 +157,10 @@ export function registerSubscriptionsAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('subscriptions.cancel', () => {
       it('throws ProviderNotFoundError (404) for a missing id', async () => {
-        const err = await provider.subscriptions
-          .cancel({ id: 'sub_missing_xyz' } as any)
-          .then(
-            () => null,
-            (e: unknown) => e,
-          );
+        const err = await provider.subscriptions.cancel({ id: 'sub_missing_xyz' } as any).then(
+          () => null,
+          (e: unknown) => e,
+        );
         expect(err).toBeInstanceOf(ProviderNotFoundError);
         expect((err as ProviderNotFoundError).status).toBe(404);
       });

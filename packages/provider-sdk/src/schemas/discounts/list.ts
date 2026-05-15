@@ -1,6 +1,6 @@
 import { z } from '../../zod.js';
-import { ProviderDiscountSchema } from '../../models/discount.js';
-import { pageOf } from '../../models/page.js';
+import { ProviderDiscountSchema, type ProviderDiscount } from '../../models/discount.js';
+import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const DiscountsListInputSchema = PaginationInputSchema.extend({
@@ -12,4 +12,4 @@ export const DiscountsListInputSchema = PaginationInputSchema.extend({
 export const DiscountsListOutputSchema = pageOf(ProviderDiscountSchema, 'DiscountsPage');
 
 export type DiscountsListInput = z.infer<typeof DiscountsListInputSchema>;
-export type DiscountsListOutput = z.infer<typeof DiscountsListOutputSchema>;
+export type DiscountsListOutput<TRaw = unknown> = Page<ProviderDiscount<TRaw>>;

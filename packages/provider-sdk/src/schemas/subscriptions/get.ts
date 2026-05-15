@@ -1,5 +1,8 @@
 import { z } from '../../zod.js';
-import { ProviderSubscriptionSchema } from '../../models/subscription.js';
+import {
+  ProviderSubscriptionSchema,
+  type ProviderSubscription,
+} from '../../models/subscription.js';
 
 export const SubscriptionsGetInputSchema = z
   .object({ id: z.string().min(1) })
@@ -8,4 +11,4 @@ export const SubscriptionsGetInputSchema = z
 export const SubscriptionsGetOutputSchema = ProviderSubscriptionSchema.nullable();
 
 export type SubscriptionsGetInput = z.infer<typeof SubscriptionsGetInputSchema>;
-export type SubscriptionsGetOutput = z.infer<typeof SubscriptionsGetOutputSchema>;
+export type SubscriptionsGetOutput<TRaw = unknown> = ProviderSubscription<TRaw> | null;

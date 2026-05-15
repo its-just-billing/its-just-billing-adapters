@@ -43,10 +43,14 @@ export const ProviderSubscriptionSchema = z
     pendingChange: PendingSubscriptionChangeSchema.nullable(),
     metadata: MetadataSchema,
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderSubscription', {
     description:
-      'Normalized subscription. Pause/resume are intentionally not modeled — use the raw provider client if needed.',
+      'Normalized subscription. Pause/resume are intentionally not modeled — use the raw provider client or `raw` field if needed.',
   });
 
-export type ProviderSubscription = z.infer<typeof ProviderSubscriptionSchema>;
+export type ProviderSubscription<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderSubscriptionSchema>,
+  'raw'
+> & { raw?: TRaw };

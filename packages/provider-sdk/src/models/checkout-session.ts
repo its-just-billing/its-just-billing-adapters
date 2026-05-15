@@ -33,18 +33,19 @@ export const ProviderCheckoutSessionSchema = z
       description:
         'Provider-specific bootstrap payload. Shape is declared by each adapter via its concrete TPresentation type. Examples: a hosted URL, an embedded client secret, or a frontend SDK token bundle.',
     }),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderCheckoutSession', {
     description:
-      'Checkout session, partly normalized and partly provider-specific. The fields above the `presentation` field are normalized across all providers. `presentation` carries whatever the caller needs to render or redirect checkout for this specific provider.',
+      'Checkout session, partly normalized and partly provider-specific. The fields above the `presentation` field are normalized across all providers. `presentation` carries whatever the caller needs to render or redirect checkout for this specific provider. `raw` is the provider-native session object exposed via the adapter`s TRaw generic.',
   });
 
 /**
- * The TS type is generic on `TPresentation` so adapters can declare a concrete
- * presentation shape. The base `unknown` keeps adapter-agnostic call sites
- * (e.g. conformance, generic plumbing) honest.
+ * The TS type is generic on `TPresentation` (provider-specific bootstrap
+ * payload) and `TRaw` (provider-native session object escape hatch). Both
+ * default to `unknown` so adapter-agnostic call sites stay honest.
  */
-export type ProviderCheckoutSession<TPresentation = unknown> = Omit<
+export type ProviderCheckoutSession<TPresentation = unknown, TRaw = unknown> = Omit<
   z.infer<typeof ProviderCheckoutSessionSchema>,
-  'presentation'
-> & { presentation: TPresentation };
+  'presentation' | 'raw'
+> & { presentation: TPresentation; raw?: TRaw };

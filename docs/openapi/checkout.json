@@ -81,7 +81,8 @@
           },
           "presentation": {
             "description": "Provider-specific bootstrap payload. Shape is declared by each adapter via its concrete TPresentation type. Examples: a hosted URL, an embedded client secret, or a frontend SDK token bundle."
-          }
+          },
+          "raw": {}
         },
         "required": [
           "id",
@@ -94,7 +95,7 @@
           "expiresAt",
           "createdAt"
         ],
-        "description": "Checkout session, partly normalized and partly provider-specific. The fields above the `presentation` field are normalized across all providers. `presentation` carries whatever the caller needs to render or redirect checkout for this specific provider."
+        "description": "Checkout session, partly normalized and partly provider-specific. The fields above the `presentation` field are normalized across all providers. `presentation` carries whatever the caller needs to render or redirect checkout for this specific provider. `raw` is the provider-native session object exposed via the adapter`s TRaw generic."
       },
       "CheckoutDiscountApplication": {
         "anyOf": [

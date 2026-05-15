@@ -5,7 +5,7 @@ import type {
   BillingDocumentsListOutput,
 } from '../schemas/billing-documents/index.js';
 
-export interface BillingDocuments {
-  list(input?: BillingDocumentsListInput): Promise<BillingDocumentsListOutput>;
-  get(input: BillingDocumentsGetInput): Promise<BillingDocumentsGetOutput>;
+export interface BillingDocuments<TRaw = unknown> {
+  list(input?: BillingDocumentsListInput): Promise<BillingDocumentsListOutput<TRaw>>;
+  get(input: BillingDocumentsGetInput): Promise<BillingDocumentsGetOutput<TRaw>>;
 }

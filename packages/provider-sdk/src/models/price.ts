@@ -28,10 +28,20 @@ export const ProviderPriceSchema = z
     metadata: MetadataSchema,
     createdAt: z.date(),
     updatedAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .and(z.discriminatedUnion('kind', [OneTimeKind, RecurringKind]))
   .openapi('ProviderPrice', {
     description: 'Normalized price record. Either one-time or recurring; quantity is first-class.',
   });
 
-export type ProviderPrice = z.infer<typeof ProviderPriceSchema>;
+// `ProviderPriceSchema` is `base.and(discriminatedUnion('kind', ...))`, so its
+// inferred type is `Base & (OneTime | Recurring)`. A plain `Omit<..., 'raw'>`
+// collapses that union and erases per-kind fields (`interval`, `intervalCount`)
+// after narrowing. Distributing Omit over the union preserves discrimination.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+export type ProviderPrice<TRaw = unknown> = DistributiveOmit<
+  z.infer<typeof ProviderPriceSchema>,
+  'raw'
+> & { raw?: TRaw };

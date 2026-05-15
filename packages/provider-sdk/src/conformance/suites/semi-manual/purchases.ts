@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BillingProvider, ProviderPurchase } from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { lazySkipIf } from '../../skip-if.js';
 
 /**
  * Registers the purchases semi-manual conformance suite. The single test
@@ -73,9 +74,7 @@ export function registerPurchasesSemiManualSuite(
 
     expect(rec.priceId === null || typeof rec.priceId === 'string').toBe(true);
     expect(rec.productId === null || typeof rec.productId === 'string').toBe(true);
-    expect(
-      rec.checkoutSessionId === null || typeof rec.checkoutSessionId === 'string',
-    ).toBe(true);
+    expect(rec.checkoutSessionId === null || typeof rec.checkoutSessionId === 'string').toBe(true);
 
     expect(isPlainObject(rec.metadata)).toBe(true);
     for (const [k, v] of Object.entries(rec.metadata as Record<string, unknown>)) {
@@ -133,21 +132,24 @@ export function registerPurchasesSemiManualSuite(
     });
 
     describe('purchases manual-completion flow', () => {
-      it.skipIf(!harness?.prompt)(
+      lazySkipIf(() => !harness?.prompt)(
         'observes a purchase via polling after manual checkout completion',
         async () => {
           // Build fixture.
           const customer = await provider.customers.create({});
+          await harness.assertConsistency?.customer?.(customer);
           const product = await provider.products.create({
             name: 'fixture',
             taxCategory: 'saas',
           });
+          await harness.assertConsistency?.product?.(product);
           const price = await provider.prices.create({
             productId: product.id,
             currency: 'usd',
             kind: 'one_time',
             unitAmount: 1000,
           });
+          await harness.assertConsistency?.price?.(price);
           const session = await provider.checkout.createSession({
             lineItems: [{ priceId: price.id, quantity: 1 }],
             successUrl: 'https://example.com/s',
@@ -171,6 +173,7 @@ export function registerPurchasesSemiManualSuite(
 
           // Shape invariants.
           expectIsPurchase(purchase);
+          await harness.assertConsistency?.purchase?.(purchase);
           if (purchase.customerId !== null) {
             expect(purchase.customerId).toBe(customer.id);
           }

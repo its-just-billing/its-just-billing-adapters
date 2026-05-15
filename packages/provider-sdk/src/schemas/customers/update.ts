@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderCustomerSchema } from '../../models/customer.js';
+import { ProviderCustomerSchema, type ProviderCustomer } from '../../models/customer.js';
 import { MetadataSchema } from '../../models/metadata.js';
 
 export const CustomersUpdateInputSchema = z
@@ -14,4 +14,4 @@ export const CustomersUpdateInputSchema = z
 export const CustomersUpdateOutputSchema = ProviderCustomerSchema;
 
 export type CustomersUpdateInput = z.infer<typeof CustomersUpdateInputSchema>;
-export type CustomersUpdateOutput = z.infer<typeof CustomersUpdateOutputSchema>;
+export type CustomersUpdateOutput<TRaw = unknown> = ProviderCustomer<TRaw>;

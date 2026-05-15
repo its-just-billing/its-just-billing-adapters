@@ -23,9 +23,13 @@ export const ProviderPurchaseSchema = z
     checkoutSessionId: z.string().nullable(),
     metadata: MetadataSchema,
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderPurchase', {
     description: 'A normalized one-time purchase / payment record.',
   });
 
-export type ProviderPurchase = z.infer<typeof ProviderPurchaseSchema>;
+export type ProviderPurchase<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderPurchaseSchema>,
+  'raw'
+> & { raw?: TRaw };

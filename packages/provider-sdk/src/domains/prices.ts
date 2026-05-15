@@ -13,13 +13,13 @@ import type {
   PricesUpdateOutput,
 } from '../schemas/prices/index.js';
 
-export interface Prices {
-  list(input?: PricesListInput): Promise<PricesListOutput>;
-  get(input: PricesGetInput): Promise<PricesGetOutput>;
-  create(input: PricesCreateInput): Promise<PricesCreateOutput>;
-  update(input: PricesUpdateInput): Promise<PricesUpdateOutput>;
+export interface Prices<TRaw = unknown> {
+  list(input?: PricesListInput): Promise<PricesListOutput<TRaw>>;
+  get(input: PricesGetInput): Promise<PricesGetOutput<TRaw>>;
+  create(input: PricesCreateInput): Promise<PricesCreateOutput<TRaw>>;
+  update(input: PricesUpdateInput): Promise<PricesUpdateOutput<TRaw>>;
   /** Soft-delete: sets `active: false`. Null when the id does not exist. */
-  deactivate(input: PricesDeactivateInput): Promise<PricesDeactivateOutput>;
+  deactivate(input: PricesDeactivateInput): Promise<PricesDeactivateOutput<TRaw>>;
   /** Restore a soft-deleted price. Null when the id does not exist. */
-  activate(input: PricesActivateInput): Promise<PricesActivateOutput>;
+  activate(input: PricesActivateInput): Promise<PricesActivateOutput<TRaw>>;
 }

@@ -1,12 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { BillingProvider, ProviderPrice, ProviderProduct } from '../../../index.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  ProviderValidationError,
+  MetadataCollisionError,
   ProviderConstraintError,
   ProviderNotFoundError,
-  MetadataCollisionError,
+  ProviderValidationError,
 } from '../../../errors/index.js';
+import type { BillingProvider, ProviderPrice, ProviderProduct } from '../../../index.js';
+import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { nonNull } from '../../skip-if.js';
 
 /**
  * Registers the prices automated conformance suite. All scenarios in the
@@ -112,6 +114,7 @@ export function registerPricesAutomatedSuite(
         taxCategory: 'saas',
       });
       createdProductIds.add(fixtureProduct.id);
+      await harness.assertConsistency?.product?.(fixtureProduct);
     });
 
     function trackPrice(id: string): void {
@@ -135,6 +138,7 @@ export function registerPricesAutomatedSuite(
         });
         trackPrice(p.id);
         expectIsPrice(p);
+        await harness.assertConsistency?.price?.(p);
         expect(p.productId).toBe(fixtureProduct.id);
         expect(p.currency).toBe('usd');
         expect(p.kind).toBe('one_time');
@@ -159,6 +163,7 @@ export function registerPricesAutomatedSuite(
         } as any);
         trackPrice(p.id);
         expectIsPrice(p);
+        await harness.assertConsistency?.price?.(p);
         expect(p.kind).toBe('recurring');
         if (p.kind === 'recurring') {
           expect(p.interval).toBe('month');
@@ -179,6 +184,7 @@ export function registerPricesAutomatedSuite(
         });
         trackPrice(p.id);
         expectIsPrice(p);
+        await harness.assertConsistency?.price?.(p);
         if (p.kind === 'recurring') {
           expect(p.intervalCount).toBe(3);
         }
@@ -194,6 +200,7 @@ export function registerPricesAutomatedSuite(
         });
         trackPrice(p.id);
         expectIsPrice(p);
+        await harness.assertConsistency?.price?.(p);
         expect(p.quantity).toEqual({ min: 2, max: 5 });
       });
 
@@ -208,6 +215,7 @@ export function registerPricesAutomatedSuite(
         });
         trackPrice(p.id);
         expectIsPrice(p);
+        await harness.assertConsistency?.price?.(p);
         expect(p.metadata).toEqual(metadata);
         for (const k of Object.keys(p.metadata)) {
           expect(k.startsWith('__provider_')).toBe(false);
@@ -475,9 +483,7 @@ export function registerPricesAutomatedSuite(
           );
         expect(err).toBeInstanceOf(MetadataCollisionError);
         expect((err as MetadataCollisionError).status).toBe(422);
-        expect((err as MetadataCollisionError).reservedKeys).toContain(
-          '__provider_quantity_min',
-        );
+        expect((err as MetadataCollisionError).reservedKeys).toContain('__provider_quantity_min');
       });
 
       // ---- provider-mapped ----
@@ -510,8 +516,9 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const got = await provider.prices.get({ id: a.id });
-        expect(got).toEqual(a);
+        expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(a));
       });
 
       it('returns null for a missing id', async () => {
@@ -528,6 +535,7 @@ export function registerPricesAutomatedSuite(
           quantity: { min: 2, max: 5 },
         });
         trackPrice(p.id);
+        await harness.assertConsistency?.price?.(p);
         const got = await provider.prices.get({ id: p.id });
         expect(got).not.toBeNull();
         expect((got as ProviderPrice).quantity).toEqual({ min: 2, max: 5 });
@@ -543,6 +551,7 @@ export function registerPricesAutomatedSuite(
           metadata,
         });
         trackPrice(p.id);
+        await harness.assertConsistency?.price?.(p);
         const got = await provider.prices.get({ id: p.id });
         expect(got).not.toBeNull();
         expect((got as ProviderPrice).metadata).toEqual(metadata);
@@ -584,6 +593,7 @@ export function registerPricesAutomatedSuite(
           taxCategory: 'saas',
         });
         trackProduct(localProduct.id);
+        await harness.assertConsistency?.product?.(localProduct);
 
         const a = await provider.prices.create({
           productId: localProduct.id,
@@ -592,6 +602,7 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const b = await provider.prices.create({
           productId: localProduct.id,
           currency: 'usd',
@@ -601,6 +612,7 @@ export function registerPricesAutomatedSuite(
           intervalCount: 1,
         });
         trackPrice(b.id);
+        await harness.assertConsistency?.price?.(b);
 
         const all = await provider.prices.list({ productId: localProduct.id });
         expectIsPage<ProviderPrice>(all);
@@ -618,7 +630,10 @@ export function registerPricesAutomatedSuite(
         expect(activeBeforeIds.has(a.id)).toBe(true);
         expect(activeBeforeIds.has(b.id)).toBe(true);
 
-        await provider.prices.deactivate({ id: a.id });
+        const deactivated = await provider.prices.deactivate({ id: a.id });
+        if (deactivated !== null) {
+          await harness.assertConsistency?.price?.(deactivated);
+        }
 
         const activeAfter = await provider.prices.list({
           productId: localProduct.id,
@@ -643,9 +658,9 @@ export function registerPricesAutomatedSuite(
         ['empty', ''],
         ['number', 42],
       ])('rejects invalid cursor (%s)', async (_l, value) => {
-        await expect(
-          provider.prices.list({ cursor: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.prices.list({ cursor: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: limit ----
@@ -656,9 +671,9 @@ export function registerPricesAutomatedSuite(
         ['too large', 101],
         ['string', '10'],
       ])('rejects invalid limit (%s)', async (_l, value) => {
-        await expect(
-          provider.prices.list({ limit: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.prices.list({ limit: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: productId ----
@@ -666,9 +681,9 @@ export function registerPricesAutomatedSuite(
         ['empty', ''],
         ['number', 42],
       ])('rejects invalid productId (%s)', async (_l, value) => {
-        await expect(
-          provider.prices.list({ productId: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.prices.list({ productId: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
 
       // ---- validation: active ----
@@ -677,9 +692,9 @@ export function registerPricesAutomatedSuite(
         ['number', 1],
         ['null', null],
       ])('rejects invalid active filter (%s)', async (_l, value) => {
-        await expect(
-          provider.prices.list({ active: value as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(provider.prices.list({ active: value as any })).rejects.toBeInstanceOf(
+          ProviderValidationError,
+        );
       });
     });
 
@@ -697,11 +712,13 @@ export function registerPricesAutomatedSuite(
           intervalCount: 2,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const before = a.updatedAt.getTime();
         const deactivated = await provider.prices.deactivate({ id: a.id });
         expect(deactivated).not.toBeNull();
         const u = deactivated as ProviderPrice;
         expectIsPrice(u);
+        await harness.assertConsistency?.price?.(u);
         expect(u.id).toBe(a.id);
         expect(u.active).toBe(false);
         expect(u.productId).toBe(a.productId);
@@ -723,9 +740,11 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         // `active` is not part of the update input schema. Zod strips it.
         const u = await provider.prices.update({ id: a.id, active: false } as any);
         expectIsPrice(u);
+        await harness.assertConsistency?.price?.(u);
         expect(u.id).toBe(a.id);
         expect(u.active).toBe(true);
       });
@@ -738,9 +757,11 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const metadata = { plan: 'pro', region: 'us' };
         const u = await provider.prices.update({ id: a.id, metadata });
         expectIsPrice(u);
+        await harness.assertConsistency?.price?.(u);
         expect(u.metadata).toEqual(metadata);
         for (const k of Object.keys(u.metadata)) {
           expect(k.startsWith('__provider_')).toBe(false);
@@ -755,8 +776,10 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const u = await provider.prices.update({ id: a.id, quantity: { min: 2, max: 5 } });
         expectIsPrice(u);
+        await harness.assertConsistency?.price?.(u);
         expect(u.quantity).toEqual({ min: 2, max: 5 });
         const got = await provider.prices.get({ id: a.id });
         expect(got).not.toBeNull();
@@ -824,6 +847,7 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         const err = await provider.prices
           .update({ id: a.id, metadata: { __provider_x: 'y' } as any })
           .then(
@@ -855,6 +879,7 @@ export function registerPricesAutomatedSuite(
           intervalCount: 1,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
 
         let outcome: { kind: 'thrown'; err: unknown } | { kind: 'ok'; p: ProviderPrice };
         try {
@@ -866,9 +891,9 @@ export function registerPricesAutomatedSuite(
 
         if (outcome.kind === 'thrown') {
           const e = outcome.err;
-          expect(
-            e instanceof ProviderValidationError || e instanceof ProviderConstraintError,
-          ).toBe(true);
+          expect(e instanceof ProviderValidationError || e instanceof ProviderConstraintError).toBe(
+            true,
+          );
           if (e instanceof ProviderValidationError) {
             expect(e.status).toBe(400);
           } else if (e instanceof ProviderConstraintError) {
@@ -889,6 +914,7 @@ export function registerPricesAutomatedSuite(
           }
         } else {
           const p = outcome.p;
+          await harness.assertConsistency?.price?.(p);
           // Same id (no silent swap).
           expect(p.id).toBe(a.id);
           // Immutable values unchanged on both the returned record and a get.
@@ -940,6 +966,7 @@ export function registerPricesAutomatedSuite(
           taxCategory: 'saas',
         });
         trackProduct(localProduct.id);
+        await harness.assertConsistency?.product?.(localProduct);
 
         const a = await provider.prices.create({
           productId: localProduct.id,
@@ -950,10 +977,12 @@ export function registerPricesAutomatedSuite(
           intervalCount: 1,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
 
         const archived = await provider.prices.deactivate({ id: a.id });
         expect(archived).not.toBeNull();
         expectIsPrice(archived as ProviderPrice);
+        await harness.assertConsistency?.price?.(archived as ProviderPrice);
         const rec = archived as ProviderPrice;
         expect(rec.id).toBe(a.id);
         expect(rec.active).toBe(false);
@@ -1000,7 +1029,11 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
-        await provider.prices.deactivate({ id: a.id });
+        await harness.assertConsistency?.price?.(a);
+        const first = await provider.prices.deactivate({ id: a.id });
+        if (first !== null) {
+          await harness.assertConsistency?.price?.(first);
+        }
         let second: ProviderPrice | null = null;
         await expect(
           (async () => {
@@ -1010,6 +1043,7 @@ export function registerPricesAutomatedSuite(
         if (second !== null) {
           expect((second as ProviderPrice).id).toBe(a.id);
           expect((second as ProviderPrice).active).toBe(false);
+          await harness.assertConsistency?.price?.(second);
         }
       });
 
@@ -1049,12 +1083,17 @@ export function registerPricesAutomatedSuite(
           intervalCount: 1,
         });
         trackPrice(a.id);
-        await provider.prices.deactivate({ id: a.id });
+        await harness.assertConsistency?.price?.(a);
+        const deactivated = await provider.prices.deactivate({ id: a.id });
+        if (deactivated !== null) {
+          await harness.assertConsistency?.price?.(deactivated);
+        }
 
         const activated = await provider.prices.activate({ id: a.id });
         expect(activated).not.toBeNull();
         const rec = activated as ProviderPrice;
         expectIsPrice(rec);
+        await harness.assertConsistency?.price?.(rec);
         expect(rec.id).toBe(a.id);
         expect(rec.active).toBe(true);
         expect(rec.productId).toBe(a.productId);
@@ -1082,6 +1121,7 @@ export function registerPricesAutomatedSuite(
           unitAmount: 100,
         });
         trackPrice(a.id);
+        await harness.assertConsistency?.price?.(a);
         let result: ProviderPrice | null = null;
         await expect(
           (async () => {
@@ -1091,6 +1131,7 @@ export function registerPricesAutomatedSuite(
         if (result !== null) {
           expect((result as ProviderPrice).id).toBe(a.id);
           expect((result as ProviderPrice).active).toBe(true);
+          await harness.assertConsistency?.price?.(result);
         }
       });
 

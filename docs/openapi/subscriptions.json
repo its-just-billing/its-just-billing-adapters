@@ -134,7 +134,8 @@
           },
           "createdAt": {
             "type": "string"
-          }
+          },
+          "raw": {}
         },
         "required": [
           "id",
@@ -149,7 +150,7 @@
           "metadata",
           "createdAt"
         ],
-        "description": "Normalized subscription. Pause/resume are intentionally not modeled — use the raw provider client if needed."
+        "description": "Normalized subscription. Pause/resume are intentionally not modeled — use the raw provider client or `raw` field if needed."
       },
       "SubscriptionsPage": {
         "type": "object",

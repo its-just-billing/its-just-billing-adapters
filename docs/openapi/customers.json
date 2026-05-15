@@ -42,6 +42,9 @@
           "createdAt": {
             "type": "string",
             "description": "Creation time as a JS Date in UTC instant"
+          },
+          "raw": {
+            "description": "Provider-native customer object exposed as a typed escape hatch via the adapter`s TRaw generic. Typed `unknown` in adapter-agnostic code; adapters narrow it on their concrete provider type."
           }
         },
         "required": [

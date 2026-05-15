@@ -15,9 +15,11 @@ import type {
  * adapter they're talking to narrow to `Checkout<StripeCheckoutPresentation>`
  * (etc.) to get full type information.
  */
-export interface Checkout<TPresentation = unknown> {
+export interface Checkout<TPresentation = unknown, TRaw = unknown> {
   createSession(
     input: CheckoutCreateSessionInput,
-  ): Promise<CheckoutCreateSessionOutput<TPresentation>>;
-  getSession(input: CheckoutGetSessionInput): Promise<CheckoutGetSessionOutput<TPresentation>>;
+  ): Promise<CheckoutCreateSessionOutput<TPresentation, TRaw>>;
+  getSession(
+    input: CheckoutGetSessionInput,
+  ): Promise<CheckoutGetSessionOutput<TPresentation, TRaw>>;
 }

@@ -79,6 +79,10 @@ The exact sequence of provider state and assertions a conforming implementation 
 - **automated**: list the prerequisites achievable through the SDK alone (e.g. "create a customer first").
 - **self-setup**: list anything that needs `harness.setup.X` (e.g. "harness.setup.createSubscription required for cancel tests").
 - **semi-manual**: list anything that requires a developer prompt (e.g. "prompt the dev to complete a Paddle checkout in the browser").
+- **fixture**: list any scenario that fits the reusable-resource pattern — a pre-provisioned resource (declared on `harness.fixtures.<id>`) that the test can health-check, exercise via reversible operations, and revert to a clean starting state. Skip create / hard-delete paths here; they belong in other tiers. For each fixture scenario, describe the expected clean starting state (the `healthCheck`) and the revert path. Test code uses the `withFixture(key, { healthCheck, test, revert })` helper exported from `@its-just-billing/provider-sdk/conformance`.
+
+## Consistency hooks
+After every successful write assertion, the test code must call the matching `harness.assertConsistency?.<model>?.(result)` hook. The brief does not need to enumerate the hook calls — they follow mechanically — but the brief MUST identify which assertions are writes (`create`, `update`, `cancel`, `change`, `deactivate`, `activate`, `cancelScheduledChange`, etc.) so the test agent knows where to insert the calls. Reads (`get`, `list`) do not get a consistency hook.
 ```
 
 ## Step 2 — Test agent

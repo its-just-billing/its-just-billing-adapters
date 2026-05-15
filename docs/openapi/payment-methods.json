@@ -55,7 +55,8 @@
           },
           "isDefault": {
             "type": "boolean"
-          }
+          },
+          "raw": {}
         },
         "required": [
           "id",

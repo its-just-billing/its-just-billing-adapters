@@ -11,5 +11,5 @@ export const CheckoutGetSessionInputSchema = z
 export const CheckoutGetSessionOutputSchema = ProviderCheckoutSessionSchema.nullable();
 
 export type CheckoutGetSessionInput = z.infer<typeof CheckoutGetSessionInputSchema>;
-export type CheckoutGetSessionOutput<TPresentation = unknown> =
-  ProviderCheckoutSession<TPresentation> | null;
+export type CheckoutGetSessionOutput<TPresentation = unknown, TRaw = unknown> =
+  ProviderCheckoutSession<TPresentation, TRaw> | null;

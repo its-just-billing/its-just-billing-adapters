@@ -233,9 +233,44 @@ try {
 
 The `capabilities` surface is intentionally narrow — currently `taxCategories` and `currencies`. New axes go in only when a real cross-provider gap exists.
 
-### When to use `provider.raw`
+### Typed raw escape hatches
 
-For provider-specific features the SDK doesn't model (Stripe Tax, Paddle Retain, full Stripe `txcd_*` taxonomy, etc.), `provider.raw` gives you the underlying provider client. Resources touched through `raw` may surface `ProviderUnmanagedStateError` on the next normalized read if they exercise features outside the normalized subset.
+Two escape hatches, both typed when you use an adapter-specific provider type:
+
+**`provider.raw`** — the underlying provider client. For provider-specific features the SDK doesn't model (Stripe Tax, Paddle Retain, full Stripe `txcd_*` taxonomy, etc.).
+
+**`response.raw`** — every normalized response carries an optional `raw` field with the provider-native object that produced it. Useful when you need one field the SDK doesn't normalize without making a second round-trip.
+
+Both are `unknown` in adapter-agnostic code and fully typed when you use the adapter's narrowed provider type:
+
+```ts
+import { createStripeProvider, type StripeProvider } from '@its-just-billing/provider-stripe';
+
+const provider: StripeProvider = createStripeProvider({...});
+
+// Top-level client:
+await provider.raw.subscriptions.cancel('sub_123');  // typed as Stripe
+
+// Per-response raw:
+const sub = await provider.subscriptions.get({ id });
+sub?.raw?.schedule;          // typed as Stripe.SubscriptionSchedule | null | undefined
+sub?.raw?.latest_invoice;    // typed
+```
+
+Adapter authors thread their concrete raw type into each domain via interface extension:
+
+```ts
+// inside provider-stripe
+export interface StripeProvider extends BillingProvider<StripeCheckoutPresentation> {
+  readonly raw: Stripe;
+  subscriptions: Subscriptions<Stripe.Subscription>;
+  purchases: Purchases<Stripe.Charge>;
+  customers: Customers<Stripe.Customer>;
+  // ...narrow whichever domains you want typed
+}
+```
+
+Resources touched through `provider.raw` may surface `ProviderUnmanagedStateError` on the next normalized read if they exercise features outside the normalized subset. `response.raw` is read-only and never triggers this.
 
 ---
 
@@ -376,13 +411,22 @@ if (s.presentation.kind === 'hosted') redirect(s.presentation.url);
 
 ## Conformance
 
-The conformance suite lives inside `@its-just-billing/provider-sdk` and tests any provider that implements `BillingProvider`. Three suite tiers:
+The conformance suite lives inside `@its-just-billing/provider-sdk` and tests any provider that implements `BillingProvider`. Four suite tiers, each with a distinct setup contract:
 
-- **automated** — runs against every harness. Setup is fully achievable through the SDK.
-- **self-setup** — runs when the harness exposes optional setup capabilities (e.g. `setup.createSubscription` — Stripe can; Paddle generally can't).
-- **semi-manual** — runs with `INTERACTIVE=1` set. Prompts the developer to complete a checkout in a browser, then resumes assertions.
+| Tier | When it runs | Setup contract |
+|---|---|---|
+| **automated** | Every harness, unconditionally. | Setup is fully achievable through the SDK alone (e.g. create a customer, list it). |
+| **self-setup** | Per-test, gated on optional `harness.setup.<capability>`. | Harness exposes capabilities the SDK can't model (e.g. `createSubscription` on Stripe). Tests covering lifecycle scenarios skip when the capability is absent. |
+| **semi-manual** | `INTERACTIVE=1` only. | Harness exposes `prompt()`. Suite covers non-reversible flows (e.g. completing a checkout) by asking the developer to perform the step, then polling. |
+| **fixture** | When `harness.fixtures.<id>` is declared for the relevant resource. | Caller points env vars at pre-provisioned resources (one subscription, one product, etc.). Each test health-checks the resource, exercises reversible operations, and reverts. Reduces manual burden for cancel-then-uncancel / update-then-revert scenarios on providers that can't self-create state. |
+
+**Independent verification: `harness.assertConsistency`.** Conformance only verifies normalized input/output shape. An adapter that fakes responses from in-memory state could pass without ever calling the provider. The harness optionally exposes per-model verifier hooks (`assertConsistency.subscription(output)` etc.) that make a fresh native call via the provider's own SDK and assert the normalized output matches reality. Conformance calls these after every write. Harnesses without the hook skip the check; harnesses with it get an independent ground-truth assertion across every test.
 
 Tests are written **implementation-unaware** via a two-agent pipeline documented in [`docs/test-process.md`](./docs/test-process.md): one agent reads only the contract and produces a plain-English brief; a second agent reads only the brief and writes vitest code. A purity guard (`pnpm --filter @its-just-billing/provider-sdk check:conformance-purity`) fails CI if any conformance file imports a provider implementation package.
+
+For deeper provider-specific assertions (webhook emission timing, async settlement, provider-only features), adapter packages may maintain their own native test suites alongside conformance.
+
+For a full provider-implementation handoff — adapter patterns, helper inventory, error mapping, the `validate → map → call → normalize` recipe, conformance harness wiring, and what's next — see [`docs/handoff.md`](./docs/handoff.md).
 
 ---
 

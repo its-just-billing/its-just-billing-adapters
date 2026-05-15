@@ -1,5 +1,8 @@
 import { z } from '../../zod.js';
-import { ProviderSubscriptionSchema } from '../../models/subscription.js';
+import {
+  ProviderSubscriptionSchema,
+  type ProviderSubscription,
+} from '../../models/subscription.js';
 
 const ChangeItem = z.object({
   priceId: z.string().min(1),
@@ -21,4 +24,4 @@ export const SubscriptionsChangeInputSchema = z
 export const SubscriptionsChangeOutputSchema = ProviderSubscriptionSchema;
 
 export type SubscriptionsChangeInput = z.infer<typeof SubscriptionsChangeInputSchema>;
-export type SubscriptionsChangeOutput = z.infer<typeof SubscriptionsChangeOutputSchema>;
+export type SubscriptionsChangeOutput<TRaw = unknown> = ProviderSubscription<TRaw>;

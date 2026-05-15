@@ -1,5 +1,8 @@
 import { z } from '../../zod.js';
-import { ProviderSubscriptionSchema } from '../../models/subscription.js';
+import {
+  ProviderSubscriptionSchema,
+  type ProviderSubscription,
+} from '../../models/subscription.js';
 
 export const SubscriptionsCancelInputSchema = z
   .object({
@@ -14,4 +17,4 @@ export const SubscriptionsCancelInputSchema = z
 export const SubscriptionsCancelOutputSchema = ProviderSubscriptionSchema;
 
 export type SubscriptionsCancelInput = z.infer<typeof SubscriptionsCancelInputSchema>;
-export type SubscriptionsCancelOutput = z.infer<typeof SubscriptionsCancelOutputSchema>;
+export type SubscriptionsCancelOutput<TRaw = unknown> = ProviderSubscription<TRaw>;

@@ -55,7 +55,7 @@ export const ProviderEventSchema = z
       'Normalized event envelope. `payload` is the translated domain object when available; `raw` is the provider-native event for escape-hatch use.',
   });
 
-export type ProviderEvent<TPayload = unknown> = Omit<
+export type ProviderEvent<TPayload = unknown, TRaw = unknown> = Omit<
   z.infer<typeof ProviderEventSchema>,
-  'payload'
-> & { payload?: TPayload };
+  'payload' | 'raw'
+> & { payload?: TPayload; raw?: TRaw };

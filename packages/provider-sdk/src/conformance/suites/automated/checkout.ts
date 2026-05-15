@@ -1,4 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  MetadataCollisionError,
+  ProviderConstraintError,
+  ProviderNotFoundError,
+  ProviderValidationError,
+} from '../../../errors/index.js';
 import type {
   BillingProvider,
   ProviderCheckoutSession,
@@ -6,12 +12,6 @@ import type {
   ProviderPrice,
   ProviderProduct,
 } from '../../../index.js';
-import {
-  ProviderValidationError,
-  ProviderConstraintError,
-  ProviderNotFoundError,
-  MetadataCollisionError,
-} from '../../../errors/index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -425,9 +425,9 @@ export function registerCheckoutAutomatedSuite(
             () => null,
             (e: unknown) => e,
           );
-        expect(
-          err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError,
-        ).toBe(true);
+        expect(err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError).toBe(
+          true,
+        );
         if (err instanceof ProviderNotFoundError) {
           expect(err.status).toBe(404);
         } else if (err instanceof ProviderConstraintError) {
@@ -446,9 +446,9 @@ export function registerCheckoutAutomatedSuite(
             () => null,
             (e: unknown) => e,
           );
-        expect(
-          err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError,
-        ).toBe(true);
+        expect(err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError).toBe(
+          true,
+        );
         if (err instanceof ProviderNotFoundError) {
           expect(err.status).toBe(404);
         } else if (err instanceof ProviderConstraintError) {

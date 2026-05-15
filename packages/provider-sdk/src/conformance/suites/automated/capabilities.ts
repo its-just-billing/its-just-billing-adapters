@@ -1,10 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type {
-  BillingProvider,
-  ProviderProduct,
-  TaxCategory,
-} from '../../../index.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderNotSupportedError } from '../../../errors/index.js';
+import type { BillingProvider, ProviderProduct, TaxCategory } from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -65,11 +61,7 @@ export function registerCapabilitiesAutomatedSuite(
   function isSetLike(obj: unknown): obj is ReadonlySet<unknown> {
     if (obj === null || typeof obj !== 'object') return false;
     const rec = obj as Record<string, unknown>;
-    return (
-      'has' in rec &&
-      typeof rec.has === 'function' &&
-      Symbol.iterator in (rec as object)
-    );
+    return 'has' in rec && typeof rec.has === 'function' && Symbol.iterator in (rec as object);
   }
 
   function uniqueName(prefix = 'cap-fixture'): string {
@@ -181,6 +173,7 @@ export function registerCapabilitiesAutomatedSuite(
           taxCategory: 'saas',
         });
         createdProductIds.add(fixtureProduct.id);
+        await harness.assertConsistency?.product?.(fixtureProduct);
 
         const err = await provider.prices
           .create({

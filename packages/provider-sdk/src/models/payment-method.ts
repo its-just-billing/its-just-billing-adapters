@@ -13,9 +13,13 @@ export const ProviderPaymentMethodSchema = z
     expMonth: z.number().int().min(1).max(12).nullable(),
     expYear: z.number().int().nullable(),
     isDefault: z.boolean(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderPaymentMethod', {
     description: 'Non-sensitive summary of a customer payment method.',
   });
 
-export type ProviderPaymentMethod = z.infer<typeof ProviderPaymentMethodSchema>;
+export type ProviderPaymentMethod<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderPaymentMethodSchema>,
+  'raw'
+> & { raw?: TRaw };

@@ -26,7 +26,11 @@ export const ProviderBillingDocumentSchema = z
     pdfUrl: z.string().url().nullable(),
     metadata: MetadataSchema,
     createdAt: z.date(),
+    raw: z.unknown().optional(),
   })
   .openapi('ProviderBillingDocument');
 
-export type ProviderBillingDocument = z.infer<typeof ProviderBillingDocumentSchema>;
+export type ProviderBillingDocument<TRaw = unknown> = Omit<
+  z.infer<typeof ProviderBillingDocumentSchema>,
+  'raw'
+> & { raw?: TRaw };

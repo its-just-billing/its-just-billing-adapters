@@ -3,6 +3,6 @@ import type {
   PaymentMethodsListOutput,
 } from '../schemas/payment-methods/index.js';
 
-export interface PaymentMethods {
-  list(input: PaymentMethodsListInput): Promise<PaymentMethodsListOutput>;
+export interface PaymentMethods<TRaw = unknown> {
+  list(input: PaymentMethodsListInput): Promise<PaymentMethodsListOutput<TRaw>>;
 }

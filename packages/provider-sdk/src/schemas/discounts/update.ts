@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderDiscountSchema } from '../../models/discount.js';
+import { ProviderDiscountSchema, type ProviderDiscount } from '../../models/discount.js';
 import { MetadataSchema } from '../../models/metadata.js';
 
 export const DiscountsUpdateInputSchema = z
@@ -16,4 +16,4 @@ export const DiscountsUpdateInputSchema = z
 export const DiscountsUpdateOutputSchema = ProviderDiscountSchema;
 
 export type DiscountsUpdateInput = z.infer<typeof DiscountsUpdateInputSchema>;
-export type DiscountsUpdateOutput = z.infer<typeof DiscountsUpdateOutputSchema>;
+export type DiscountsUpdateOutput<TRaw = unknown> = ProviderDiscount<TRaw>;

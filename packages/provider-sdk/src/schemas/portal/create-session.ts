@@ -1,5 +1,8 @@
 import { z } from '../../zod.js';
-import { ProviderPortalSessionSchema } from '../../models/portal-session.js';
+import {
+  ProviderPortalSessionSchema,
+  type ProviderPortalSession,
+} from '../../models/portal-session.js';
 
 export const PortalCreateSessionInputSchema = z
   .object({
@@ -11,4 +14,4 @@ export const PortalCreateSessionInputSchema = z
 export const PortalCreateSessionOutputSchema = ProviderPortalSessionSchema;
 
 export type PortalCreateSessionInput = z.infer<typeof PortalCreateSessionInputSchema>;
-export type PortalCreateSessionOutput = z.infer<typeof PortalCreateSessionOutputSchema>;
+export type PortalCreateSessionOutput<TRaw = unknown> = ProviderPortalSession<TRaw>;

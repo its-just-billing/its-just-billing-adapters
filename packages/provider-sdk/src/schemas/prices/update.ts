@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { ProviderPriceSchema } from '../../models/price.js';
+import { ProviderPriceSchema, type ProviderPrice } from '../../models/price.js';
 import { MetadataSchema } from '../../models/metadata.js';
 import { QuantitySchema } from '../../models/quantity.js';
 
@@ -17,4 +17,4 @@ export const PricesUpdateInputSchema = z
 export const PricesUpdateOutputSchema = ProviderPriceSchema;
 
 export type PricesUpdateInput = z.infer<typeof PricesUpdateInputSchema>;
-export type PricesUpdateOutput = z.infer<typeof PricesUpdateOutputSchema>;
+export type PricesUpdateOutput<TRaw = unknown> = ProviderPrice<TRaw>;
