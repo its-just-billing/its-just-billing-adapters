@@ -7,6 +7,54 @@
   },
   "components": {
     "schemas": {
+      "Money": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Amount in minor units (e.g. cents)",
+            "example": 1999
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[a-z]{3}$",
+            "description": "Lowercase ISO 4217 currency code",
+            "example": "usd"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "description": "A monetary amount in minor units plus ISO currency"
+      },
+      "AppliedDiscount": {
+        "type": "object",
+        "properties": {
+          "discountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "amountDiscounted": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "discountId",
+          "code",
+          "amountDiscounted"
+        ],
+        "additionalProperties": false,
+        "description": "A single discount applied to a payment or checkout session. Use `discountId` to refetch the full ProviderDiscount via `discounts.get`."
+      },
       "Metadata": {
         "type": "object",
         "additionalProperties": {
@@ -67,6 +115,12 @@
             ],
             "format": "uri"
           },
+          "appliedDiscounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedDiscount"
+            }
+          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           },
@@ -91,6 +145,7 @@
           "lineItems",
           "successUrl",
           "cancelUrl",
+          "appliedDiscounts",
           "metadata",
           "expiresAt",
           "createdAt"
@@ -116,7 +171,8 @@
             "required": [
               "kind",
               "discountId"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -135,7 +191,8 @@
             "required": [
               "kind",
               "code"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -149,9 +206,34 @@
             },
             "required": [
               "kind"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
+      },
+      "TrialSpec": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          }
+        },
+        "required": [
+          "count",
+          "unit"
+        ],
+        "additionalProperties": false,
+        "description": "A trial period offered on a checkout session. Interpreted as `count` × `unit` from the moment the resulting subscription starts."
       },
       "CheckoutCreateSessionInput": {
         "type": "object",
@@ -191,6 +273,9 @@
           },
           "discount": {
             "$ref": "#/components/schemas/CheckoutDiscountApplication"
+          },
+          "trial": {
+            "$ref": "#/components/schemas/TrialSpec"
           },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"

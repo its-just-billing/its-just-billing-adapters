@@ -3,7 +3,7 @@ export type { Products } from './products.js';
 export type { Prices } from './prices.js';
 export type { Subscriptions } from './subscriptions.js';
 export type { Checkout } from './checkout.js';
-export type { Purchases } from './purchases.js';
+export type { Payments } from './payments.js';
 export type { Discounts } from './discounts.js';
 export type { Events } from './events.js';
 export type { Webhooks } from './webhooks.js';

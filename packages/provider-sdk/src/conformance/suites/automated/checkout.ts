@@ -86,6 +86,23 @@ export function registerCheckoutAutomatedSuite(
       expect(isParsableUrl(rec.cancelUrl)).toBe(true);
     }
 
+    // appliedDiscounts
+    expect(Array.isArray(rec.appliedDiscounts)).toBe(true);
+    for (const d of rec.appliedDiscounts as unknown[]) {
+      expect(isPlainObject(d)).toBe(true);
+      const entry = d as Record<string, unknown>;
+      expect(typeof entry.discountId).toBe('string');
+      expect((entry.discountId as string).length).toBeGreaterThan(0);
+      expect(entry.code === null || typeof entry.code === 'string').toBe(true);
+      expect(isPlainObject(entry.amountDiscounted)).toBe(true);
+      const amt = entry.amountDiscounted as Record<string, unknown>;
+      expect(typeof amt.amount).toBe('number');
+      expect(Number.isInteger(amt.amount)).toBe(true);
+      expect((amt.amount as number) >= 0).toBe(true);
+      expect(typeof amt.currency).toBe('string');
+      expect(/^[a-z]{3}$/.test(amt.currency as string)).toBe(true);
+    }
+
     // metadata
     expect(isPlainObject(rec.metadata)).toBe(true);
     for (const [k, v] of Object.entries(rec.metadata as Record<string, unknown>)) {
@@ -186,6 +203,80 @@ export function registerCheckoutAutomatedSuite(
         });
         expectIsCheckoutSession(s);
         expect(s.status).toBe('open');
+        // No code resolved at create time — `allowPromotionCodes` defers
+        // discount entry to the hosted UI, so the session reflects no applied
+        // discounts until a code is entered.
+        expect(s.appliedDiscounts).toEqual([]);
+      });
+
+      it('discount:{kind:"discountId"} returns a session whose appliedDiscounts is well-formed and self-consistent', async () => {
+        // Use a percent-off discount to sidestep cross-currency concerns
+        // between the discount and the session.
+        const discount = await provider.discounts.create({
+          benefit: { kind: 'percent', percentOff: 25 },
+          duration: { kind: 'once' },
+        });
+        try {
+          const s = await provider.checkout.createSession({
+            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            successUrl: 'https://example.com/success',
+            discount: { kind: 'discountId', discountId: discount.id },
+          });
+          expectIsCheckoutSession(s);
+          // Whether `appliedDiscounts` is populated at session-creation time
+          // is provider-dependent: the mock computes line totals
+          // synchronously and surfaces the entry immediately; Stripe leaves
+          // `total_details.breakdown.discounts[]` empty on open sessions and
+          // computes it on completion. Both behaviors are conformant. The
+          // contract that holds regardless: the array exists, every entry
+          // is shape-valid (asserted by expectIsCheckoutSession), and if
+          // any entry references the requested discount, its amount is
+          // positive in the session currency.
+          for (const entry of s.appliedDiscounts) {
+            if (entry.discountId === discount.id) {
+              expect(entry.amountDiscounted.amount).toBeGreaterThan(0);
+            }
+          }
+        } finally {
+          // Clean up: deactivate the discount so it doesn't accumulate.
+          try {
+            await provider.discounts.deactivate({ id: discount.id });
+          } catch {
+            // Best-effort.
+          }
+          try {
+            await harness.cleanupResource?.('discount', discount.id);
+          } catch {
+            // Best-effort.
+          }
+        }
+      });
+
+      it('trial validation: rejects { count: 0 } and negative counts', async () => {
+        await expect(
+          provider.checkout.createSession({
+            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            successUrl: 'https://example.com/success',
+            trial: { count: 0, unit: 'day' } as any,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(
+          provider.checkout.createSession({
+            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            successUrl: 'https://example.com/success',
+            trial: { count: -5, unit: 'day' } as any,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
+
+      it('trial validation: rejects unknown unit', async () => {
+        await expect(
+          provider.checkout.createSession({
+            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            successUrl: 'https://example.com/success',
+            trial: { count: 14, unit: 'fortnight' as any },
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
       it('preserves multiple lineItems in order', async () => {

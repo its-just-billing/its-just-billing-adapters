@@ -5,9 +5,9 @@ import { registerCheckoutAutomatedSuite } from './checkout.js';
 import { registerCustomersAutomatedSuite } from './customers.js';
 import { registerDiscountsAutomatedSuite } from './discounts.js';
 import { registerEventsAutomatedSuite } from './events.js';
+import { registerPaymentsAutomatedSuite } from './payments.js';
 import { registerPricesAutomatedSuite } from './prices.js';
 import { registerProductsAutomatedSuite } from './products.js';
-import { registerPurchasesAutomatedSuite } from './purchases.js';
 import { registerSubscriptionsAutomatedSuite } from './subscriptions.js';
 import { registerWebhooksAutomatedSuite } from './webhooks.js';
 
@@ -29,7 +29,7 @@ export function registerAutomatedSuite(label: string, factory: HarnessFactory): 
     registerDiscountsAutomatedSuite(label, factory);
     registerCheckoutAutomatedSuite(label, factory);
     registerSubscriptionsAutomatedSuite(label, factory);
-    registerPurchasesAutomatedSuite(label, factory);
+    registerPaymentsAutomatedSuite(label, factory);
     registerEventsAutomatedSuite(label, factory);
     registerWebhooksAutomatedSuite(label, factory);
   });

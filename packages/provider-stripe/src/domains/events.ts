@@ -12,8 +12,8 @@ export function createEventsDomain(stripe: Stripe): Events<unknown, Stripe.Event
           : undefined;
       // Translate the SDK type filter into Stripe's native event names. When
       // the caller supplied a `types` filter but none of those normalized
-      // types have a Stripe source (e.g. `purchase.created` — Stripe doesn't
-      // fire a dedicated "purchase was created" event), the translated set is
+      // types have a Stripe source (e.g. `payment.created` — Stripe doesn't
+      // fire a dedicated "payment was created" event), the translated set is
       // empty. We must NOT then call Stripe without a `types` filter —
       // Stripe would interpret "no filter" as "all events" and silently widen
       // the caller's filter from "match these" to "match everything". Return

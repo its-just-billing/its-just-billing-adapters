@@ -1,4 +1,5 @@
 import { z } from '../zod.js';
+import { AppliedDiscountSchema } from './applied-discount.js';
 import { MetadataSchema } from './metadata.js';
 
 export const CheckoutSessionStatusSchema = z.enum(['open', 'complete', 'expired']);
@@ -26,6 +27,11 @@ export const ProviderCheckoutSessionSchema = z
     lineItems: z.array(CheckoutLineItemSchema).min(1),
     successUrl: z.string().url(),
     cancelUrl: z.string().url().nullable(),
+    // Discounts already resolved on this session. Empty array means none
+    // resolved yet; for sessions created with `discount: { kind:
+    // 'allowPromotionCodes' }`, this stays empty until the customer enters
+    // a code at checkout, then reflects the resolved discount on next read.
+    appliedDiscounts: z.array(AppliedDiscountSchema),
     metadata: MetadataSchema,
     expiresAt: z.date().nullable(),
     createdAt: z.date(),

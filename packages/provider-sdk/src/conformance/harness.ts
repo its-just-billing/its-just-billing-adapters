@@ -3,10 +3,11 @@ import type { ProviderBillingDocument } from '../models/billing-document.js';
 import type { ProviderCustomer } from '../models/customer.js';
 import type { ProviderDiscount } from '../models/discount.js';
 import type { ProviderPaymentMethod } from '../models/payment-method.js';
+import type { ProviderPayment } from '../models/payment.js';
 import type { ProviderPrice } from '../models/price.js';
 import type { ProviderProduct } from '../models/product.js';
-import type { ProviderPurchase } from '../models/purchase.js';
 import type { ProviderSubscription } from '../models/subscription.js';
+import type { TrialSpec } from '../models/trial.js';
 import type { ProviderWebhookEndpoint } from '../models/webhook.js';
 
 /**
@@ -22,9 +23,17 @@ export interface ProviderTestSetup {
     customerId: string;
     priceId: string;
     quantity?: number;
+    /**
+     * Optional trial period to apply at subscription creation. When set, the
+     * resulting subscription should land in `status: 'trialing'` with a
+     * non-null `trialEnd`. Adapters that can't honor a given trial unit
+     * (e.g. Stripe rejecting `month`/`year`) should throw
+     * `ProviderNotSupportedError` rather than silently approximate.
+     */
+    trial?: TrialSpec;
   }): Promise<ProviderSubscription>;
 
-  completePurchase?(input: { checkoutSessionId: string }): Promise<ProviderPurchase>;
+  completePayment?(input: { checkoutSessionId: string }): Promise<ProviderPayment>;
 }
 
 /**
@@ -77,7 +86,7 @@ export interface ProviderConsistencyChecks {
   product?(output: ProviderProduct): Promise<void>;
   price?(output: ProviderPrice): Promise<void>;
   subscription?(output: ProviderSubscription): Promise<void>;
-  purchase?(output: ProviderPurchase): Promise<void>;
+  payment?(output: ProviderPayment): Promise<void>;
   discount?(output: ProviderDiscount): Promise<void>;
   webhookEndpoint?(output: ProviderWebhookEndpoint): Promise<void>;
   billingDocument?(output: ProviderBillingDocument): Promise<void>;

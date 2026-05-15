@@ -1,19 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { BillingProvider, ProviderPurchase } from '../../../index.js';
+import type { BillingProvider, ProviderPayment } from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 import { lazySkipIf } from '../../skip-if.js';
 
 /**
- * Registers the purchases semi-manual conformance suite. The single test
+ * Registers the payments semi-manual conformance suite. The single test
  * drives the checkout fixture, asks the developer to complete payment via
- * `harness.prompt`, then polls `purchases.list({customerId})` every 1s for
- * up to 60s until a matching purchase appears.
+ * `harness.prompt`, then polls `payments.list({customerId})` every 1s for
+ * up to 60s until a matching payment appears.
  *
  * The whole suite is gated on `harness.prompt`; the outer
  * `describe.skipIf(!isInteractiveMode())` in `semi-manual/index.ts` further
  * skips everything when `INTERACTIVE` is not truthy.
  */
-export function registerPurchasesSemiManualSuite(
+export function registerPaymentsSemiManualSuite(
   label: string,
   factory: () => ProviderTestHarness | Promise<ProviderTestHarness>,
 ): void {
@@ -25,7 +25,7 @@ export function registerPurchasesSemiManualSuite(
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
-  const PURCHASE_STATUSES = new Set([
+  const PAYMENT_STATUSES = new Set([
     'pending',
     'succeeded',
     'failed',
@@ -43,7 +43,7 @@ export function registerPurchasesSemiManualSuite(
     }
   }
 
-  function expectIsPurchase(p: unknown): asserts p is ProviderPurchase {
+  function expectIsPayment(p: unknown): asserts p is ProviderPayment {
     expect(isPlainObject(p)).toBe(true);
     const rec = p as Record<string, unknown>;
 
@@ -52,7 +52,7 @@ export function registerPurchasesSemiManualSuite(
 
     expect(rec.customerId === null || typeof rec.customerId === 'string').toBe(true);
     expect(typeof rec.status).toBe('string');
-    expect(PURCHASE_STATUSES.has(rec.status as string)).toBe(true);
+    expect(PAYMENT_STATUSES.has(rec.status as string)).toBe(true);
 
     expect(isPlainObject(rec.amount)).toBe(true);
     const amt = rec.amount as Record<string, unknown>;
@@ -70,6 +70,26 @@ export function registerPurchasesSemiManualSuite(
       expect((ref.amount as number) >= 0).toBe(true);
       expect(typeof ref.currency).toBe('string');
       expect(/^[a-z]{3}$/.test(ref.currency as string)).toBe(true);
+    }
+
+    if ('subtotal' in rec && rec.subtotal !== undefined) {
+      expect(isPlainObject(rec.subtotal)).toBe(true);
+      const sub = rec.subtotal as Record<string, unknown>;
+      expect(typeof sub.amount).toBe('number');
+      expect(Number.isInteger(sub.amount)).toBe(true);
+      expect((sub.amount as number) >= 0).toBe(true);
+      expect(typeof sub.currency).toBe('string');
+      expect(/^[a-z]{3}$/.test(sub.currency as string)).toBe(true);
+    }
+
+    expect(Array.isArray(rec.appliedDiscounts)).toBe(true);
+    for (const d of rec.appliedDiscounts as unknown[]) {
+      expect(isPlainObject(d)).toBe(true);
+      const entry = d as Record<string, unknown>;
+      expect(typeof entry.discountId).toBe('string');
+      expect((entry.discountId as string).length).toBeGreaterThan(0);
+      expect(entry.code === null || typeof entry.code === 'string').toBe(true);
+      expect(isPlainObject(entry.amountDiscounted)).toBe(true);
     }
 
     expect(rec.priceId === null || typeof rec.priceId === 'string').toBe(true);
@@ -94,35 +114,35 @@ export function registerPurchasesSemiManualSuite(
   }
 
   /**
-   * Poll `purchases.list({customerId})` until we observe a purchase whose
+   * Poll `payments.list({customerId})` until we observe a payment whose
    * `checkoutSessionId` matches `sessionId`. Times out after
    * `POLL_TIMEOUT_MS`.
    */
-  async function pollForPurchase(
+  async function pollForPayment(
     provider: BillingProvider,
     customerId: string,
     sessionId: string,
-  ): Promise<ProviderPurchase> {
+  ): Promise<ProviderPayment> {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let firstObservation = true;
     while (Date.now() < deadline) {
-      const out = await provider.purchases.list({ customerId });
+      const out = await provider.payments.list({ customerId });
       if (firstObservation) {
-        expectIsPage<ProviderPurchase>(out);
+        expectIsPage<ProviderPayment>(out);
         firstObservation = false;
       }
       const match = out.data.find((p) => p.checkoutSessionId === sessionId);
       if (match) return match;
       await sleep(POLL_INTERVAL_MS);
     }
-    throw new Error(`Timeout waiting for purchase from session ${sessionId}`);
+    throw new Error(`Timeout waiting for payment from session ${sessionId}`);
   }
 
   // ---------------------------------------------------------------------------
   // Outer describe — acquires harness once, gates on `harness.prompt`.
   // ---------------------------------------------------------------------------
 
-  describe(`purchases [${label}]`, () => {
+  describe(`payments [${label}]`, () => {
     let harness: ProviderTestHarness;
     let provider: BillingProvider;
 
@@ -131,9 +151,9 @@ export function registerPurchasesSemiManualSuite(
       provider = harness.provider;
     });
 
-    describe('purchases manual-completion flow', () => {
+    describe('payments manual-completion flow', () => {
       lazySkipIf(() => !harness?.prompt)(
-        'observes a purchase via polling after manual checkout completion',
+        'observes a payment via polling after manual checkout completion',
         async () => {
           // Build fixture.
           const customer = await provider.customers.create({});
@@ -169,41 +189,41 @@ export function registerPurchasesSemiManualSuite(
             ].join('\n'),
           );
 
-          const purchase = await pollForPurchase(provider, customer.id, session.id);
+          const payment = await pollForPayment(provider, customer.id, session.id);
 
           // Shape invariants.
-          expectIsPurchase(purchase);
-          await harness.assertConsistency?.purchase?.(purchase);
-          if (purchase.customerId !== null) {
-            expect(purchase.customerId).toBe(customer.id);
+          expectIsPayment(payment);
+          await harness.assertConsistency?.payment?.(payment);
+          if (payment.customerId !== null) {
+            expect(payment.customerId).toBe(customer.id);
           }
-          expect(['pending', 'succeeded']).toContain(purchase.status);
-          expect(Number.isInteger(purchase.amount.amount)).toBe(true);
-          expect(purchase.amount.amount).toBeGreaterThan(0);
-          expect(/^[a-z]{3}$/.test(purchase.amount.currency)).toBe(true);
-          expect(purchase.amountRefunded).toBeNull();
-          if (purchase.priceId !== null) {
-            expect(purchase.priceId).toBe(price.id);
+          expect(['pending', 'succeeded']).toContain(payment.status);
+          expect(Number.isInteger(payment.amount.amount)).toBe(true);
+          expect(payment.amount.amount).toBeGreaterThan(0);
+          expect(/^[a-z]{3}$/.test(payment.amount.currency)).toBe(true);
+          expect(payment.amountRefunded).toBeNull();
+          if (payment.priceId !== null) {
+            expect(payment.priceId).toBe(price.id);
           }
-          if (purchase.productId !== null) {
-            expect(purchase.productId).toBe(product.id);
+          if (payment.productId !== null) {
+            expect(payment.productId).toBe(product.id);
           }
-          expect(purchase.checkoutSessionId).toBe(session.id);
-          for (const k of Object.keys(purchase.metadata)) {
+          expect(payment.checkoutSessionId).toBe(session.id);
+          for (const k of Object.keys(payment.metadata)) {
             expect(k.startsWith('__provider_')).toBe(false);
           }
-          expect(purchase.createdAt).toBeInstanceOf(Date);
+          expect(payment.createdAt).toBeInstanceOf(Date);
 
           // get round-trip.
-          const got = await provider.purchases.get({ id: purchase.id });
-          expect(got).toEqual(purchase);
+          const got = await provider.payments.get({ id: payment.id });
+          expect(got).toEqual(payment);
 
-          // list round-trip: every purchase under this customer deep-equals get.
-          const out = await provider.purchases.list({ customerId: customer.id });
-          expectIsPage<ProviderPurchase>(out);
+          // list round-trip: every payment under this customer deep-equals get.
+          const out = await provider.payments.list({ customerId: customer.id });
+          expectIsPage<ProviderPayment>(out);
           for (const p of out.data) {
-            expectIsPurchase(p);
-            const single = await provider.purchases.get({ id: p.id });
+            expectIsPayment(p);
+            const single = await provider.payments.get({ id: p.id });
             expect(single).toEqual(p);
           }
         },

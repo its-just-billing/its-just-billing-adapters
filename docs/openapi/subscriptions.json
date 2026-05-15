@@ -117,6 +117,12 @@
           "currentPeriodEnd": {
             "type": "string"
           },
+          "trialEnd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "cancelAtPeriodEnd": {
             "type": "boolean"
           },
@@ -144,6 +150,7 @@
           "items",
           "currentPeriodStart",
           "currentPeriodEnd",
+          "trialEnd",
           "cancelAtPeriodEnd",
           "canceledAt",
           "pendingChange",

@@ -1,8 +1,10 @@
 import {
+  type AppliedDiscount,
   type CheckoutLineItem,
   type CheckoutSessionStatus,
   type ProviderCheckoutSession,
   ProviderNormalizationError,
+  normalizeCurrency,
   stripReservedKeys,
 } from '@its-just-billing/provider-sdk';
 import type Stripe from 'stripe';
@@ -36,6 +38,34 @@ function customerIdOf(s: Stripe.Checkout.Session): string | null {
   if (typeof s.customer === 'string') return s.customer;
   if (s.customer && typeof s.customer === 'object') return s.customer.id;
   return null;
+}
+
+/**
+ * Map `Stripe.Checkout.Session.total_details.breakdown.discounts[]` into the
+ * SDK's AppliedDiscount shape. Each entry's `discount` is a full
+ * `Stripe.Discount` object (Stripe inlines it on the session response). We
+ * intentionally skip coupon-only discounts (no PromotionCode) so every
+ * returned `discountId` is refetchable via `discounts.get` — same rule the
+ * event normalizer applies.
+ */
+function appliedDiscountsOf(s: Stripe.Checkout.Session, currency: string): AppliedDiscount[] {
+  const breakdown = s.total_details?.breakdown;
+  if (!breakdown || !Array.isArray(breakdown.discounts)) return [];
+  const out: AppliedDiscount[] = [];
+  for (const line of breakdown.discounts) {
+    const discount = line.discount;
+    if (!discount || typeof discount === 'string') continue;
+    const pc = discount.promotion_code;
+    const discountId = typeof pc === 'string' ? pc : pc && typeof pc === 'object' ? pc.id : null;
+    if (!discountId) continue;
+    const code = pc && typeof pc === 'object' && typeof pc.code === 'string' ? pc.code : null;
+    out.push({
+      discountId,
+      code,
+      amountDiscounted: { amount: line.amount, currency },
+    });
+  }
+  return out;
 }
 
 /**
@@ -78,6 +108,7 @@ export function normalizeStripeCheckoutSession(
     });
   }
 
+  const currency = native.currency ? normalizeCurrency(native.currency) : null;
   return {
     id: native.id,
     status: statusOf(native),
@@ -85,6 +116,7 @@ export function normalizeStripeCheckoutSession(
     lineItems: lineItems.map((li) => ({ priceId: li.priceId, quantity: li.quantity })),
     successUrl: native.success_url,
     cancelUrl: native.cancel_url ?? null,
+    appliedDiscounts: currency !== null ? appliedDiscountsOf(native, currency) : [],
     metadata: stripReservedKeys(native.metadata ?? {}),
     expiresAt: native.expires_at !== undefined ? fromUnixSeconds(native.expires_at) : null,
     createdAt: fromUnixSeconds(native.created),

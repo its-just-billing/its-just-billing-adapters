@@ -1,18 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderValidationError } from '../../../errors/index.js';
-import type { BillingProvider, ProviderPurchase } from '../../../index.js';
+import type { BillingProvider, ProviderPayment } from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
- * Registers the purchases automated conformance suite. Because purchases can
+ * Registers the payments automated conformance suite. Because payments can
  * only come into existence as the side effect of a completed checkout (the
- * SDK exposes no `purchases.create`), the automated suite is restricted to
- * input validation and list/get behavior when no purchase exists.
+ * SDK exposes no `payments.create`), the automated suite is restricted to
+ * input validation and list/get behavior when no payment exists.
  *
  * This file is the spec for those scenarios; the brief is the source of
  * truth.
  */
-export function registerPurchasesAutomatedSuite(
+export function registerPaymentsAutomatedSuite(
   label: string,
   factory: () => ProviderTestHarness | Promise<ProviderTestHarness>,
 ): void {
@@ -25,7 +25,7 @@ export function registerPurchasesAutomatedSuite(
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
-  const PURCHASE_STATUSES = new Set([
+  const PAYMENT_STATUSES = new Set([
     'pending',
     'succeeded',
     'failed',
@@ -43,7 +43,7 @@ export function registerPurchasesAutomatedSuite(
     }
   }
 
-  function expectIsPurchase(p: unknown): asserts p is ProviderPurchase {
+  function expectIsPayment(p: unknown): asserts p is ProviderPayment {
     expect(isPlainObject(p)).toBe(true);
     const rec = p as Record<string, unknown>;
 
@@ -52,7 +52,7 @@ export function registerPurchasesAutomatedSuite(
 
     expect(rec.customerId === null || typeof rec.customerId === 'string').toBe(true);
     expect(typeof rec.status).toBe('string');
-    expect(PURCHASE_STATUSES.has(rec.status as string)).toBe(true);
+    expect(PAYMENT_STATUSES.has(rec.status as string)).toBe(true);
 
     // amount
     expect(isPlainObject(rec.amount)).toBe(true);
@@ -74,6 +74,36 @@ export function registerPurchasesAutomatedSuite(
       expect(/^[a-z]{3}$/.test(ref.currency as string)).toBe(true);
     }
 
+    // subtotal (optional)
+    if ('subtotal' in rec && rec.subtotal !== undefined) {
+      expect(isPlainObject(rec.subtotal)).toBe(true);
+      const sub = rec.subtotal as Record<string, unknown>;
+      expect(typeof sub.amount).toBe('number');
+      expect(Number.isInteger(sub.amount)).toBe(true);
+      expect((sub.amount as number) >= 0).toBe(true);
+      expect(typeof sub.currency).toBe('string');
+      expect(/^[a-z]{3}$/.test(sub.currency as string)).toBe(true);
+    }
+
+    // appliedDiscounts: required array; entries shape-checked
+    expect(Array.isArray(rec.appliedDiscounts)).toBe(true);
+    for (const d of rec.appliedDiscounts as unknown[]) {
+      expect(isPlainObject(d)).toBe(true);
+      const entry = d as Record<string, unknown>;
+      expect(typeof entry.discountId).toBe('string');
+      expect((entry.discountId as string).length).toBeGreaterThan(0);
+      expect(entry.code === null || typeof entry.code === 'string').toBe(true);
+      expect(isPlainObject(entry.amountDiscounted)).toBe(true);
+      const amt = entry.amountDiscounted as Record<string, unknown>;
+      expect(typeof amt.amount).toBe('number');
+      expect(Number.isInteger(amt.amount)).toBe(true);
+      expect((amt.amount as number) >= 0).toBe(true);
+      expect(typeof amt.currency).toBe('string');
+      expect(/^[a-z]{3}$/.test(amt.currency as string)).toBe(true);
+      // Currency invariant: applied-discount currency must match payment amount
+      expect(amt.currency).toBe((rec.amount as Record<string, unknown>).currency);
+    }
+
     expect(rec.priceId === null || typeof rec.priceId === 'string').toBe(true);
     expect(rec.productId === null || typeof rec.productId === 'string').toBe(true);
     expect(rec.checkoutSessionId === null || typeof rec.checkoutSessionId === 'string').toBe(true);
@@ -93,7 +123,7 @@ export function registerPurchasesAutomatedSuite(
   // Outer describe — acquires harness once, registers per-method describes.
   // ---------------------------------------------------------------------------
 
-  describe(`purchases [${label}]`, () => {
+  describe(`payments [${label}]`, () => {
     let harness: ProviderTestHarness;
     let provider: BillingProvider;
     const createdCustomerIds = new Set<string>();
@@ -108,31 +138,31 @@ export function registerPurchasesAutomatedSuite(
     }
 
     // -------------------------------------------------------------------------
-    // purchases.list
+    // payments.list
     // -------------------------------------------------------------------------
-    describe('purchases.list', () => {
+    describe('payments.list', () => {
       it('returns an array (never null/undefined) with no input', async () => {
-        const out = await provider.purchases.list();
-        expectIsPage<ProviderPurchase>(out);
-        for (const p of out.data) expectIsPurchase(p);
+        const out = await provider.payments.list();
+        expectIsPage<ProviderPayment>(out);
+        for (const p of out.data) expectIsPayment(p);
       });
 
       it('returns an array with empty input', async () => {
-        const out = await provider.purchases.list({});
-        expectIsPage<ProviderPurchase>(out);
+        const out = await provider.payments.list({});
+        expectIsPage<ProviderPayment>(out);
       });
 
-      it('returns [] for a freshly created customer that has no purchases', async () => {
+      it('returns [] for a freshly created customer that has no payments', async () => {
         const c = await provider.customers.create({});
         trackCustomer(c.id);
-        const out = await provider.purchases.list({ customerId: c.id });
-        expectIsPage<ProviderPurchase>(out);
+        const out = await provider.payments.list({ customerId: c.id });
+        expectIsPage<ProviderPayment>(out);
         expect(out.data).toEqual([]);
       });
 
       it('returns [] (no throw) for a customerId that does not exist', async () => {
-        const out = await provider.purchases.list({ customerId: 'cus_does_not_exist' });
-        expectIsPage<ProviderPurchase>(out);
+        const out = await provider.payments.list({ customerId: 'cus_does_not_exist' });
+        expectIsPage<ProviderPayment>(out);
         expect(out.data).toEqual([]);
       });
 
@@ -143,7 +173,7 @@ export function registerPurchasesAutomatedSuite(
         ['number', 42],
         ['boolean', true],
       ])('rejects non-object input (%s)', async (_l, value) => {
-        await expect(provider.purchases.list(value as any)).rejects.toBeInstanceOf(
+        await expect(provider.payments.list(value as any)).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
@@ -156,7 +186,7 @@ export function registerPurchasesAutomatedSuite(
         ['object', { x: 1 }],
         ['null', null],
       ])('rejects invalid customerId (%s)', async (_l, value) => {
-        await expect(provider.purchases.list({ customerId: value as any })).rejects.toBeInstanceOf(
+        await expect(provider.payments.list({ customerId: value as any })).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
@@ -169,7 +199,7 @@ export function registerPurchasesAutomatedSuite(
         ['null', null],
         ['empty', ''],
       ])('rejects invalid status (%s)', async (_l, value) => {
-        await expect(provider.purchases.list({ status: value as any })).rejects.toBeInstanceOf(
+        await expect(provider.payments.list({ status: value as any })).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
@@ -181,7 +211,7 @@ export function registerPurchasesAutomatedSuite(
         ['boolean', true],
         ['object', { x: 1 }],
       ])('rejects invalid cursor (%s)', async (_l, value) => {
-        await expect(provider.purchases.list({ cursor: value as any })).rejects.toBeInstanceOf(
+        await expect(provider.payments.list({ cursor: value as any })).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
@@ -195,18 +225,18 @@ export function registerPurchasesAutomatedSuite(
         ['string', '10'],
         ['NaN', Number.NaN],
       ])('rejects invalid limit (%s)', async (_l, value) => {
-        await expect(provider.purchases.list({ limit: value as any })).rejects.toBeInstanceOf(
+        await expect(provider.payments.list({ limit: value as any })).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
     });
 
     // -------------------------------------------------------------------------
-    // purchases.get
+    // payments.get
     // -------------------------------------------------------------------------
-    describe('purchases.get', () => {
+    describe('payments.get', () => {
       it('returns null (does not throw) for a missing id', async () => {
-        const got = await provider.purchases.get({ id: 'pur_does_not_exist_xyz' });
+        const got = await provider.payments.get({ id: 'pay_does_not_exist_xyz' });
         expect(got).toBeNull();
       });
 
@@ -214,11 +244,11 @@ export function registerPurchasesAutomatedSuite(
       it.each([
         ['undefined', undefined],
         ['null', null],
-        ['string', 'pur_123'],
+        ['string', 'pay_123'],
         ['number', 42],
         ['boolean', true],
       ])('rejects non-object input (%s)', async (_l, value) => {
-        await expect(provider.purchases.get(value as any)).rejects.toBeInstanceOf(
+        await expect(provider.payments.get(value as any)).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });
@@ -232,7 +262,7 @@ export function registerPurchasesAutomatedSuite(
         ['boolean', { id: true as any }],
         ['object', { id: { x: 1 } as any }],
       ])('rejects invalid id (%s)', async (_l, input) => {
-        await expect(provider.purchases.get(input as any)).rejects.toBeInstanceOf(
+        await expect(provider.payments.get(input as any)).rejects.toBeInstanceOf(
           ProviderValidationError,
         );
       });

@@ -37,10 +37,12 @@ export function registerEventsAutomatedSuite(
     'subscription.created',
     'subscription.updated',
     'subscription.canceled',
-    'purchase.created',
-    'purchase.succeeded',
-    'purchase.failed',
-    'purchase.refunded',
+    'subscription.trial_will_end',
+    'subscription.trial_ended',
+    'payment.created',
+    'payment.succeeded',
+    'payment.failed',
+    'payment.refunded',
     'discount.created',
     'discount.updated',
     'discount.archived',
@@ -55,7 +57,7 @@ export function registerEventsAutomatedSuite(
     'product',
     'price',
     'subscription',
-    'purchase',
+    'payment',
     'discount',
     'checkout_session',
     'billing_document',
@@ -149,18 +151,18 @@ export function registerEventsAutomatedSuite(
       it('filter must not silently widen to all events when no requested type has a provider counterpart', async () => {
         // Regression: adapters that translate the SDK type filter into a
         // provider-native one (e.g. Stripe's `types: [...]`) must never widen
-        // "filter to these types" into "no filter at all". `purchase.created`
+        // "filter to these types" into "no filter at all". `payment.created`
         // is a normalized type that has no Stripe source event today — the
         // translated provider filter is therefore empty. A naive adapter
         // would then omit the `types` parameter and call the provider with
         // no filter, returning *every* event in the account. The contract is
         // that requesting a filter is binding: either the provider returns
         // only matching events, or it returns nothing.
-        const out = await provider.events.list({ types: ['purchase.created'] });
+        const out = await provider.events.list({ types: ['payment.created'] });
         expectIsPage<ProviderEvent>(out);
         for (const e of out.data) {
           expectIsEvent(e);
-          expect(e.type).toBe('purchase.created');
+          expect(e.type).toBe('payment.created');
         }
       });
 

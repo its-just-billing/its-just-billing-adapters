@@ -5,10 +5,10 @@ import type {
   Discounts,
   Events,
   PaymentMethods,
+  Payments,
   Portal,
   Prices,
   Products,
-  Purchases,
   Subscriptions,
   Webhooks,
 } from './domains/index.js';
@@ -47,7 +47,7 @@ export interface BillingProvider<TCheckoutPresentation = unknown> {
   prices: Prices;
   subscriptions: Subscriptions;
   checkout: Checkout<TCheckoutPresentation>;
-  purchases: Purchases;
+  payments: Payments;
   discounts: Discounts;
   events: Events;
   webhooks: Webhooks;

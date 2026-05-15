@@ -4,8 +4,8 @@ import { type MockCheckoutPresentation, type MockProvider, createMockProvider } 
 /**
  * Build a fresh conformance harness backed by an in-memory mock provider.
  *
- * The mock can self-create subscriptions and complete purchases, so both
- * `setup.createSubscription` and `setup.completePurchase` are provided. When
+ * The mock can self-create subscriptions and complete payments, so both
+ * `setup.createSubscription` and `setup.completePayment` are provided. When
  * `seedFixtures` is true (the default) the harness pre-provisions one resource
  * per fixture key so the fixture suite exercises every gated test.
  *
@@ -31,15 +31,16 @@ export async function createMockHarness(options: MockHarnessOptions = {}): Promi
     label: 'mock',
     provider,
     setup: {
-      async createSubscription({ customerId, priceId, quantity }) {
+      async createSubscription({ customerId, priceId, quantity, trial }) {
         return provider.admin.createSubscription({
           customerId,
           priceId,
           ...(quantity !== undefined ? { quantity } : {}),
+          ...(trial !== undefined ? { trial } : {}),
         });
       },
-      async completePurchase({ checkoutSessionId }) {
-        return provider.admin.completePurchase({ checkoutSessionId });
+      async completePayment({ checkoutSessionId }) {
+        return provider.admin.completePayment({ checkoutSessionId });
       },
     },
     ...(fixtures ? { fixtures } : {}),

@@ -20,6 +20,12 @@ function normalize(s: InternalSubscription): ProviderSubscription {
     items: s.items.map((i) => ({ id: i.id, priceId: i.priceId, quantity: i.quantity })),
     currentPeriodStart: cloneDate(s.currentPeriodStart),
     currentPeriodEnd: cloneDate(s.currentPeriodEnd),
+    // `trialEnd` is non-null only while actively trialing — null once the
+    // trial concludes. The lowest-common-denominator contract across
+    // providers (some null trial_end after the trial; we can't fabricate a
+    // date for those, so the SDK never promises one post-trial). Mirrors
+    // the Stripe normalizer.
+    trialEnd: s.status === 'trialing' ? cloneDate(s.trialEnd) : null,
     cancelAtPeriodEnd: s.cancelAtPeriodEnd,
     canceledAt: cloneDate(s.canceledAt),
     pendingChange: s.pendingChange

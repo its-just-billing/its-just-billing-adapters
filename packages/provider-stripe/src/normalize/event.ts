@@ -19,6 +19,12 @@ import { fromUnixSeconds } from '../clone-date.js';
  * id breaks the contract. Dashboard-created coupons without a promotion
  * code are intentionally invisible to the SDK event stream — they are also
  * invisible to `discounts.get`, so the surface is consistent.
+ *
+ * Note: `subscription.trial_ended` is intentionally NOT in this map. Stripe
+ * does not emit a dedicated trial-ended event; consumers wanting to react to
+ * "trial just ended now" diff `status` across `customer.subscription.updated`
+ * events themselves. The SDK keeps the `subscription.trial_ended` enum value
+ * for providers (e.g. Polar) that do emit it natively.
  */
 export const STRIPE_TO_NORMALIZED_EVENT: Record<string, ProviderEventType> = {
   'customer.created': 'customer.created',
@@ -31,9 +37,10 @@ export const STRIPE_TO_NORMALIZED_EVENT: Record<string, ProviderEventType> = {
   'customer.subscription.created': 'subscription.created',
   'customer.subscription.updated': 'subscription.updated',
   'customer.subscription.deleted': 'subscription.canceled',
-  'charge.succeeded': 'purchase.succeeded',
-  'charge.failed': 'purchase.failed',
-  'charge.refunded': 'purchase.refunded',
+  'customer.subscription.trial_will_end': 'subscription.trial_will_end',
+  'charge.succeeded': 'payment.succeeded',
+  'charge.failed': 'payment.failed',
+  'charge.refunded': 'payment.refunded',
   'promotion_code.created': 'discount.created',
   'promotion_code.updated': 'discount.updated',
   'checkout.session.completed': 'checkout_session.completed',
@@ -70,10 +77,12 @@ const RESOURCE_KIND_FOR_EVENT: Record<ProviderEventType, EventResourceKind> = {
   'subscription.created': 'subscription',
   'subscription.updated': 'subscription',
   'subscription.canceled': 'subscription',
-  'purchase.created': 'purchase',
-  'purchase.succeeded': 'purchase',
-  'purchase.failed': 'purchase',
-  'purchase.refunded': 'purchase',
+  'subscription.trial_will_end': 'subscription',
+  'subscription.trial_ended': 'subscription',
+  'payment.created': 'payment',
+  'payment.succeeded': 'payment',
+  'payment.failed': 'payment',
+  'payment.refunded': 'payment',
   'discount.created': 'discount',
   'discount.updated': 'discount',
   'discount.archived': 'discount',

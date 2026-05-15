@@ -5,7 +5,7 @@ export const EventResourceKindSchema = z.enum([
   'product',
   'price',
   'subscription',
-  'purchase',
+  'payment',
   'discount',
   'checkout_session',
   'billing_document',
@@ -29,10 +29,16 @@ export const ProviderEventTypeSchema = z.enum([
   'subscription.created',
   'subscription.updated',
   'subscription.canceled',
-  'purchase.created',
-  'purchase.succeeded',
-  'purchase.failed',
-  'purchase.refunded',
+  // Trial lifecycle: trial_will_end fires shortly before `trialEnd`; trial_ended
+  // fires when the subscription's status flips out of `'trialing'`. Adapters
+  // may synthesize the latter from `subscription.updated` when the underlying
+  // provider doesn't emit a dedicated event (Stripe).
+  'subscription.trial_will_end',
+  'subscription.trial_ended',
+  'payment.created',
+  'payment.succeeded',
+  'payment.failed',
+  'payment.refunded',
   'discount.created',
   'discount.updated',
   'discount.archived',

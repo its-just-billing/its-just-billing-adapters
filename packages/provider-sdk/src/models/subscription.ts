@@ -38,6 +38,21 @@ export const ProviderSubscriptionSchema = z
     items: z.array(SubscriptionItemSchema).min(1),
     currentPeriodStart: z.date(),
     currentPeriodEnd: z.date(),
+    // The moment the current trial will end, in absolute time. Non-null ONLY
+    // while `status === 'trialing'` (and then it is a future timestamp — when
+    // the trial will flip the sub to `'active'` / `'past_due'` / `'canceled'`).
+    // Null whenever the subscription is not trialing: no trial was ever set,
+    // OR the trial has already concluded.
+    //
+    // Why null-after-concluded rather than a historical record: this is the
+    // only shape every provider can honor. Some providers (Stripe) keep their
+    // native trial-end populated forever; others null it once the trial ends.
+    // An adapter can always normalize the "kept" case DOWN to null, but can
+    // never fabricate a date for the "nulled" case — so the cross-provider
+    // contract is the intersection. Callers needing "when did the trial end"
+    // should capture it from the `subscription.trial_ended` event, not infer
+    // it from a post-trial subscription read.
+    trialEnd: z.date().nullable(),
     cancelAtPeriodEnd: z.boolean(),
     canceledAt: z.date().nullable(),
     pendingChange: PendingSubscriptionChangeSchema.nullable(),

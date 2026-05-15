@@ -72,4 +72,63 @@ describe('Stripe event normalization', () => {
     expect(normalized?.resource.id).toBe('promo_TEST123');
     expect(normalized?.resource.kind).toBe('discount');
   });
+
+  it('maps customer.subscription.trial_will_end → subscription.trial_will_end', () => {
+    // Stripe does fire this event natively. Sibling event
+    // `subscription.trial_ended` has no Stripe analog and is intentionally
+    // absent from STRIPE_TO_NORMALIZED_EVENT.
+    expect(STRIPE_TO_NORMALIZED_EVENT['customer.subscription.trial_will_end']).toBe(
+      'subscription.trial_will_end',
+    );
+    const trialEvent = {
+      id: 'evt_test_trial_will_end',
+      object: 'event',
+      type: 'customer.subscription.trial_will_end',
+      api_version: '2025-08-27.basil',
+      created: 1_700_000_000,
+      livemode: false,
+      pending_webhooks: 0,
+      request: null,
+      data: {
+        object: {
+          id: 'sub_TEST',
+          object: 'subscription',
+          status: 'trialing',
+        },
+      },
+    } as unknown as Stripe.Event;
+    const normalized = maybeNormalizeStripeEvent(trialEvent);
+    expect(normalized).not.toBeNull();
+    expect(normalized?.type).toBe('subscription.trial_will_end');
+    expect(normalized?.resource.kind).toBe('subscription');
+    expect(normalized?.resource.id).toBe('sub_TEST');
+  });
+
+  it('does NOT synthesize subscription.trial_ended from customer.subscription.updated', () => {
+    // Stripe never emits a dedicated trial_ended event. The SDK does not
+    // manufacture one either — consumers diff `status` across updates
+    // themselves. A customer.subscription.updated whose previous status was
+    // 'trialing' resolves to a plain subscription.updated, nothing more.
+    const subUpdate = {
+      id: 'evt_test_sub_updated',
+      object: 'event',
+      type: 'customer.subscription.updated',
+      api_version: '2025-08-27.basil',
+      created: 1_700_000_000,
+      livemode: false,
+      pending_webhooks: 0,
+      request: null,
+      data: {
+        object: {
+          id: 'sub_TEST',
+          object: 'subscription',
+          status: 'active',
+        },
+        previous_attributes: { status: 'trialing' },
+      },
+    } as unknown as Stripe.Event;
+    const normalized = maybeNormalizeStripeEvent(subUpdate);
+    expect(normalized).not.toBeNull();
+    expect(normalized?.type).toBe('subscription.updated');
+  });
 });

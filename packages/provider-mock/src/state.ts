@@ -12,6 +12,7 @@ import type {
   RecurringInterval,
   SubscriptionItem,
   SubscriptionStatus,
+  TrialSpec,
 } from '@its-just-billing/provider-sdk';
 
 /**
@@ -78,6 +79,12 @@ export interface InternalDiscount {
   createdAt: Date;
 }
 
+export interface InternalAppliedDiscount {
+  discountId: string;
+  code: string | null;
+  amountDiscounted: { amount: number; currency: string };
+}
+
 export interface InternalCheckoutSession {
   id: string;
   status: CheckoutSessionStatus;
@@ -85,6 +92,8 @@ export interface InternalCheckoutSession {
   lineItems: { priceId: string; quantity: number }[];
   successUrl: string;
   cancelUrl: string | null;
+  appliedDiscounts: InternalAppliedDiscount[];
+  trial: TrialSpec | null;
   metadata: Metadata;
   expiresAt: Date | null;
   createdAt: Date;
@@ -97,6 +106,7 @@ export interface InternalSubscription {
   items: SubscriptionItem[];
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
+  trialEnd: Date | null;
   cancelAtPeriodEnd: boolean;
   canceledAt: Date | null;
   pendingChange: PendingSubscriptionChange | null;
@@ -104,12 +114,14 @@ export interface InternalSubscription {
   createdAt: Date;
 }
 
-export interface InternalPurchase {
+export interface InternalPayment {
   id: string;
   customerId: string | null;
   status: 'pending' | 'succeeded' | 'failed' | 'refunded' | 'partially_refunded';
   amount: { amount: number; currency: string };
+  subtotal: { amount: number; currency: string } | null;
   amountRefunded: { amount: number; currency: string } | null;
+  appliedDiscounts: InternalAppliedDiscount[];
   priceId: string | null;
   productId: string | null;
   checkoutSessionId: string | null;
@@ -147,7 +159,7 @@ export class MockState {
   readonly prices = new Map<string, InternalPrice>();
   readonly subscriptions = new Map<string, InternalSubscription>();
   readonly checkoutSessions = new Map<string, InternalCheckoutSession>();
-  readonly purchases = new Map<string, InternalPurchase>();
+  readonly payments = new Map<string, InternalPayment>();
   readonly discounts = new Map<string, InternalDiscount>();
   readonly webhookEndpoints = new Map<string, InternalWebhookEndpoint>();
   /** Newest events at the tail. */

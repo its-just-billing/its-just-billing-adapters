@@ -6,7 +6,7 @@ title: Provider implementation handoff
 
 A guide for picking up provider adapter work (mock, Stripe, Paddle/Polar). Covers the contract you're implementing, the patterns adapters must follow, the helpers available, and how to wire the conformance harness.
 
-**Current state** (as of this handoff): SDK + mock + Stripe are all complete. Stripe runs 890 tests green against a live test-mode account (6 skip cleanly when Stripe doesn't expose the necessary admin path). Before adding a second real provider, **two SDK contract decisions are pending** — see [§Open SDK contract decisions](#open-sdk-contract-decisions). Resolving them up front matters because both touch shapes that ripple through every adapter.
+**Current state** (as of this handoff): SDK + mock + Stripe are all complete. Stripe runs ~900 tests green against a live test-mode account (7 skip cleanly when Stripe doesn't expose the necessary admin path). The `purchases`→`payments` rename and discounts-on-payments are resolved. **The second real provider is now Paddle, not Polar.** That reopens the trials decision: Paddle has price-level trials, which the original checkout-only resolution explicitly said would force a rev. Decision #2 has been **re-resolved** as a dual capability-axis model (price-level + checkout-level trials) — see [§Open SDK contract decisions](#open-sdk-contract-decisions) decision #2. Resource ownership (decision #3) is **resolved as the ownership boundary**: the SDK normalizes only resources it owns; foreign/drifted products & prices fail loud (`ProviderUnmanagedStateError`) instead of being normalized-and-pretended; `import` is the sole adoption path. Enforced from the first provider. Read [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants) before finalizing any domain for a new provider.
 
 Companion docs:
 - [`../provider-system-v2.md`](../provider-system-v2.md) — design spec (the contract).
@@ -64,7 +64,7 @@ interface BillingProvider<TCheckoutPresentation = unknown> {
   prices: Prices;
   subscriptions: Subscriptions;
   checkout: Checkout<TCheckoutPresentation>;
-  purchases: Purchases;
+  payments: Payments;
   discounts: Discounts;
   events: Events;
   webhooks: Webhooks;
@@ -86,7 +86,7 @@ Each adapter exports a narrow type that overrides `raw` and any domains it wants
 export interface StripeProvider extends BillingProvider<StripeCheckoutPresentation> {
   readonly raw: Stripe;
   subscriptions: Subscriptions<Stripe.Subscription>;
-  purchases: Purchases<Stripe.Charge>;
+  payments: Payments<Stripe.Charge>;
   customers: Customers<Stripe.Customer>;
   // ...override whichever domains you want typed-raw
 }
@@ -94,7 +94,7 @@ export interface StripeProvider extends BillingProvider<StripeCheckoutPresentati
 
 ### Domains
 
-Required: `customers`, `products`, `prices`, `subscriptions`, `checkout`, `purchases`, `discounts`, `events`, `webhooks`. Optional: `portal`, `billingDocuments`, `paymentMethods` (set the field to populate, omit otherwise — callers detect via `if (provider.portal)`).
+Required: `customers`, `products`, `prices`, `subscriptions`, `checkout`, `payments`, `discounts`, `events`, `webhooks`. Optional: `portal`, `billingDocuments`, `paymentMethods` (set the field to populate, omit otherwise — callers detect via `if (provider.portal)`).
 
 Each domain interface is generic on `TRaw = unknown` (and `Checkout` is also generic on `TPresentation`, `Events` on `TPayload`, `Webhooks` on `TEndpointRaw + TEventRaw + TPayload`). Every method returns `Promise<Model<TRaw>>` or `Promise<Page<Model<TRaw>>>` where `Page<T> = { data: T[]; nextCursor: string | null }`.
 
@@ -109,7 +109,7 @@ Every model lives in `packages/provider-sdk/src/models/`. Each has a Zod schema 
 | `ProviderPrice` | yes | one_time \| recurring discriminated union; quantity first-class |
 | `ProviderSubscription` | yes | items, status, pendingChange (for scheduled changes) |
 | `ProviderCheckoutSession` | yes + TPresentation | presentation field carries provider bootstrap data |
-| `ProviderPurchase` | yes | normalized one-time payment; refunds out of v1 |
+| `ProviderPayment` | yes | normalized money-movement record (one-time charge, subscription renewal, etc.); refunds out of v1 |
 | `ProviderDiscount` | yes | benefit (percent/amount) + duration |
 | `ProviderEvent` | yes + TPayload | TPayload is the translated domain object |
 | `ProviderWebhookEndpoint` | yes | active is send/don't-send toggle, NOT soft-delete |
@@ -183,7 +183,7 @@ packages/provider-<name>/
     │   ├── prices.ts
     │   ├── subscriptions.ts
     │   ├── checkout.ts
-    │   ├── purchases.ts
+    │   ├── payments.ts
     │   ├── discounts.ts
     │   ├── events.ts
     │   └── webhooks.ts
@@ -215,7 +215,7 @@ import type {
   Products,
   Prices,
   Subscriptions,
-  Purchases,
+  Payments,
   Discounts,
   Events,
   Webhooks,
@@ -233,7 +233,7 @@ export interface StripeProvider extends BillingProvider<StripeCheckoutPresentati
   products: Products<Stripe.Product>;
   prices: Prices<Stripe.Price>;
   subscriptions: Subscriptions<Stripe.Subscription>;
-  purchases: Purchases<Stripe.Charge>;
+  payments: Payments<Stripe.Charge>;
   discounts: Discounts<Stripe.Coupon>;
   events: Events<unknown, Stripe.Event>;
   webhooks: Webhooks<Stripe.WebhookEndpoint, Stripe.Event>;
@@ -790,10 +790,10 @@ export function createStripeHarness(): ProviderTestHarness<StripeCheckoutPresent
         });
         return normalizeStripeSubscription(native);
       },
-      async completePurchase({ checkoutSessionId }) {
+      async completePayment({ checkoutSessionId }) {
         // Stripe doesn't directly "complete" a checkout via API; use test helpers
         // or pre-paid mode. Defer to the actual Stripe testing playbook.
-        throw new Error('TODO: implement Stripe completePurchase via test mode');
+        throw new Error('TODO: implement Stripe completePayment via test mode');
       },
     },
 
@@ -877,9 +877,9 @@ What's currently populated (none of it runs yet — no adapter exists):
 
 | Suite | Domains | Notes |
 |---|---|---|
-| **automated** | customers, products, prices, discounts, subscriptions (validation only), checkout, purchases (validation + empty-state), events, webhooks, capabilities | Optional domains (portal, billing-documents, payment-methods) not yet generated. |
-| **self-setup** | subscriptions, purchases | Gated on `harness.setup.createSubscription` / `completePurchase`. |
-| **semi-manual** | purchases | Gated on `INTERACTIVE=1` + `harness.prompt`. |
+| **automated** | customers, products, prices, discounts, subscriptions (validation only), checkout, payments (validation + empty-state), events, webhooks, capabilities | Optional domains (portal, billing-documents, payment-methods) not yet generated. |
+| **self-setup** | subscriptions, payments | Gated on `harness.setup.createSubscription` / `completePayment`. |
+| **semi-manual** | payments | Gated on `INTERACTIVE=1` + `harness.prompt`. |
 | **fixture** | customers, products, prices, discounts, subscriptions, webhooks | Gated on the relevant `harness.fixtures.<id>`. 6 domains, ~28 scenarios, ~1,938 LOC. |
 
 Every conformance test calls `await harness.assertConsistency?.<model>?.(result)` after every write. Mock harnesses typically don't supply these. Stripe/Paddle harnesses should implement every applicable verifier.
@@ -965,7 +965,7 @@ Validation cases (`ProviderValidationError(400)`, `MetadataCollisionError(422)`,
 
 ### Capabilities surface
 
-`provider.capabilities.taxCategories: ReadonlySet<TaxCategory>` and `currencies: ReadonlySet<string>`. Pre-flight checks. Adding a new axis is a contract change — go through the spec.
+`provider.capabilities.taxCategories: ReadonlySet<TaxCategory>`, `currencies: ReadonlySet<string>`, and `webhookEventTypes: ReadonlySet<ProviderEventType>`. Pre-flight checks. `webhookEventTypes` declares which normalized event types the provider can actually emit; `webhooks.createEndpoint`/`updateEndpoint` reject subscriptions to types outside this set with `ProviderNotSupportedError(422)`. Adding a new axis is a contract change — go through the spec.
 
 ### `__provider_*` reserved keys
 
@@ -984,13 +984,13 @@ Both are 422 but they're different semantics. Pick the right one.
 
 In priority order:
 
-1. **Resolve the open SDK contract decisions** — see [§Open SDK contract decisions](#open-sdk-contract-decisions) below. These shape what `purchases` returns and how trials are expressed, both of which ripple through every adapter. Settling them before writing a second real adapter avoids a migration later.
+1. **Open SDK contract decisions** — rename and discount-on-payments are ✅ RESOLVED. Trials (decision #2) are ✅ **RE-RESOLVED** as a dual capability-axis model (price-level + checkout-level), reopened because the second provider is now Paddle (price-level trials). Resource ownership (decision #3) is ✅ **RESOLVED** as the ownership boundary — owned-only normalization, fail-loud on foreign/drifted products & prices, `import` as the sole adoption path, enforced from the first provider. Retrospective + rationale in [§Open SDK contract decisions](#open-sdk-contract-decisions); the governing principle is [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants).
 
 2. **Mock provider** (`packages/provider-mock`) — ✅ **DONE.** Reference implementation. 921 tests green. Read `packages/provider-mock/src/` end-to-end before starting any new adapter — every pattern you'll need is already there.
 
 3. **Stripe provider** (`packages/provider-stripe`) — ✅ **DONE.** Live test mode runs 890 pass / 6 skip / 0 fail. See the [Stripe playbook](#stripe-playbook) for the patterns the adapter ended up using, and [§Stripe quirks & lessons](#stripe-quirks--lessons) for what came out of the live test runs that the original playbook didn't anticipate.
 
-4. **Second real provider — Polar OR Paddle** — the choice partly depends on the trials decision (see contract decisions). Polar's trial model matches Stripe's (passed at checkout), which preserves the cleaner SDK shape; Paddle's lives on the price object, which forces an awkward fan-out. The package skeleton `packages/provider-paddle/` is in place but might be renamed/replaced.
+4. **Second real provider — Paddle** — uses the existing `packages/provider-paddle/` skeleton. Paddle has **native price-level trials** and **no checkout-level trial**: declare `trial.priceLevel: true`, `trial.checkoutLevel: false`, map Paddle's native trial fields to the price model's `TrialSpec`, and reject a checkout-level `trial` with `ProviderNotSupportedError(422)`. Before finalizing `products`/`prices`/`checkout`, run the required+immutable audit in [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants) per domain. Polar (if ever taken on) reuses the same trial flags and gets its own future product-level-price-model flag — the shape landing now is forward-compatible and needs no rev for that.
 
    Whichever provider lands second:
    - Same domain skeleton + 5-step recipe per method.
@@ -1000,78 +1000,161 @@ In priority order:
    - Implement the `cleanupResource` hook on the harness for hard-delete (see Stripe's `harness.ts` — products, discounts, customers each have provider-native delete paths the SDK contract intentionally doesn't expose, but tests need them).
 
 5. **Close conformance gaps** — three are known:
-   - **Semi-manual purchases suite** does not track the customer/product/price/purchase it creates; they orphan after every run. The `cleanupResource` hook exists; the semi-manual suite needs the same `track(id)` + `afterAll` cleanup loop as the automated suites.
+   - **Semi-manual payments suite** does not track the customer/product/price/payment it creates; they orphan after every run. The `cleanupResource` hook exists; the semi-manual suite needs the same `track(id)` + `afterAll` cleanup loop as the automated suites.
    - **Self-setup subscriptions** track customers but not the subscriptions themselves. The `'subscription'` kind is already in `ProviderTrackedKind` — wire it.
    - **Manual-flow resource discovery** (Paddle-style): there's no current way for a semi-manual test to record an id that materialized post-checkout. May need an explicit "I observed this id after a manual step" track API.
 
 ---
 
+## Closable vs unclosable invariants
+
+The governing principle for the whole contract. Read this before finalizing any domain for a new provider.
+
+**The SDK's purpose is not exact normalization. It is exact normalization wherever possible, and explicit, declared invariant handling everywhere else.** Where a provider diverges, the contract declares the divergence via a capability flag rather than papering it over silently.
+
+**Divergence is closed by one of two mechanisms.**
+
+1. **Capability flags — for optional/behavioral divergence** (trials, currencies, tax categories). The consumer reads the flag, learns "not here," and routes around it.
+2. **The ownership boundary — for structural invariants over a resource** (a product owns exactly one price model; an SDK-authored subscription schedule). You cannot capability-flag your way out of "this foreign resource silently violates an invariant we promised." You close it by **only normalizing resources the SDK owns**, and failing loud on everything else.
+
+The strict shape is always *modelable* — **Polar proves this**: Polar runs on Stripe and presents exactly the product/price model we'd otherwise struggle to normalize. It succeeds not because it has a database but because it is the **exclusive mutation path** for the Stripe resources it manages — it creates them to fit its model and never tries to normalize an arbitrary foreign Stripe product. The only thing we can never prove is *that an arbitrary out-of-band resource fits the model* (it has none of our metadata; one field conflicting is as likely as not). So the honest contract admits only owned resources.
+
+Persistence substrate does not change any of this — metadata and a local DB are isomorphic in expressiveness; anything enforceable with persistent state is enforceable with `__provider_*` metadata, just slower. A local DB only makes the *same* contract cheaper to serve; it does not extend what can be normalized. Enforcement of any cross-resource invariant is gated by **mutation-path exclusivity** (you created or imported+adopted the resource and nothing mutates it out-of-band), never by where the ownership claim is stored. A higher-level package can close otherwise-open invariants **iff it owns CRUD on the resources**, under the explicit usage rule: *edit a managed resource out-of-band → your fault.*
+
+**The ownership boundary, concretely.** Stamp an ownership marker in `__provider_*` metadata at every `*.create`. Re-check ownership on every normalize (the `isSdkAuthoredSchedule` / playbook §14 precedent — a one-time stamp is not trusted; the invariant is re-derived each read). A resource that is unowned, or owned-but-drifted, encountered where the contract requires a structural guarantee → `ProviderUnmanagedStateError`; never normalize-and-pretend. `import` (per-domain, may land incrementally) is the **sole sanctioned adoption path**: read native → validate against the structural invariants → iff compatible, stamp ownership → first-class SDK resource; incompatible → `ProviderConstraintError`/`ProviderUnmanagedStateError` at import time. This posture is enforced from the **first** provider so no adapter ever ships a "normalize anything" surface that has to be clawed back. Scope: it applies only to domains carrying such an invariant (products/prices, subscription schedules). Domains with no cross-resource invariant (customers, payments, events, webhooks) still normalize foreign resources freely — normalization there is a pure function of one response, nothing to break — preserving "exact normalization wherever possible."
+
+**Exactly one case is unclosable: a required normalized field that some provider makes default-forced and immutable.** If our contract requires a field, the provider won't let it be set at create (so we must inject a default), and the provider also won't let it be changed via `update`, then the default is permanent. The field looks like a consumer affordance but is frozen — a worse lie than declaring "not supported," because the consumer believes they have control they don't.
+
+**Per-field audit — run this for every required field, per provider, before finalizing a domain.** Classify the field as one of:
+
+| Class | Verdict |
+|---|---|
+| create-settable **and** update-mutable | ✅ fine |
+| create-settable, immutable-by-domain (e.g. `createdAt`) | ✅ fine — no consumer ever needs to change it |
+| **default-forced and immutable** | ⛔ toxic — the default silently becomes the only value |
+
+A field in the toxic bucket must be **demoted to capability-gated or dropped from required** — never patched with a silent default. Optional fields are never toxic (absence is itself a declaration).
+
+For the initial providers (Stripe, Paddle) the goal is **zero toxic invariants**: behavioral divergence closed by capability flags, structural invariants closed by the ownership boundary. Decision #3 is **resolved** as the ownership boundary above (not deferred — a "normalize anything" products/prices surface would break the moment a foreign product with a conflicting field is read).
+
+---
+
 ## Open SDK contract decisions
 
-Two pending design choices block a clean second-provider landing. Both touch the public contract, so the cost of changing them grows with each adapter that ships.
+These touch the public contract, so the cost of changing them grows with each adapter that ships. Governed by [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants).
 
-### 1. Discounts on purchases (and maybe rename `purchases` → `payments` or `transactions`)
+### 1. Discounts on payments — ✅ RESOLVED
 
-**Problem.** A `ProviderPurchase` today carries `amount`, `amountRefunded`, `customerId`, `priceId`, `productId`, `checkoutSessionId`, `metadata`, `createdAt`. There's no way for a caller to render "customer X paid $20 on a $25 charge because they had a $5 discount" — the discount information isn't surfaced anywhere on the purchase.
+**Rename `purchases` → `payments`:** done. **Discount surface on payments + checkout sessions:** done.
 
-**Recommendation.** Add discount fields to `ProviderPurchase`. The shape should let a caller compute (a) what the purchase was nominally worth before any discount, (b) what was actually charged, and (c) which discount(s) applied. Sketch:
+The new shape that landed:
 
-```ts
-ProviderPurchase {
-  // ... existing fields
-  amount: Money;          // already exists — final charged amount
-  subtotal?: Money;       // pre-discount, pre-tax (optional — not every provider returns it)
-  appliedDiscounts: {
-    discountId: string;       // promotion code / discount id, refetchable via discounts.get
-    code: string | null;      // public-facing code if any
-    amountDiscounted: Money;  // per-discount line item
-  }[];
-}
-```
+- New shared model `AppliedDiscount` in `packages/provider-sdk/src/models/applied-discount.ts`:
+  ```ts
+  AppliedDiscount = {
+    discountId: string;          // PromotionCode id; refetchable via discounts.get
+    code: string | null;         // public-facing code if any
+    amountDiscounted: Money;     // currency matches the carrier's amount
+  }
+  ```
+- `ProviderPayment` gained `subtotal?: Money` and `appliedDiscounts: AppliedDiscount[]`.
+- `ProviderCheckoutSession` gained `appliedDiscounts: AppliedDiscount[]`.
 
-Open questions for the next agent:
+Adapter notes:
 
-- Stripe surfaces discounts on the underlying `Invoice` (subscription payments) and on the `Charge.discount` field for one-time payments — both reachable, just need to expand or re-fetch on the read path.
-- Paddle surfaces discount on the transaction. Polar similarly. Check shape parity before fixing on a normalized name.
-- The mock doesn't track discount application on its `InternalPurchase` at all today. Adding it requires the `admin.completePurchase` flow to capture which discount was used on the originating checkout session, then thread that into the purchase record.
+- **Mock** computes `appliedDiscounts` synchronously at checkout-session create (percent: `floor(subtotal × percentOff / 100)`; amount: `min(amountOff, subtotal)` with currency check). `admin.completePayment` threads the session's `appliedDiscounts` into the resulting payment and clamps final `amount` to `>= 0`.
+- **Stripe checkout sessions** surface `total_details.breakdown.discounts[]`, but only after a session has been processed — for sessions still in `'open'` status Stripe returns no entries. The contract treats this as conformant; consumers re-read the session after completion to observe the resolved discount.
+- **Stripe payments** fetch the associated `Invoice` (expanded with `discounts`) when `charge.invoice` is set, then map `invoice.total_discount_amounts[]` to `appliedDiscounts[]` and use `invoice.subtotal_excluding_tax` for `subtotal`. PaymentIntent-only charges (no invoice) leave `appliedDiscounts: []` and omit `subtotal` — Stripe's Charge object alone doesn't carry discount info. Future work: walk back through the originating CheckoutSession to recover it.
+- **Coupon-only discounts** (Stripe discounts created via the `coupon` parameter without a PromotionCode) are intentionally invisible in `appliedDiscounts` — the SDK identifies discounts by PromotionCode id, and coupon-only entries aren't refetchable via `discounts.get`. Same rule the event normalizer applies.
 
-**Should we add `discount` to subscriptions too?** Author's view: **no**. Subscriptions represent "what is this customer recurringly paying for going forward" — the `priceId` answers that. The actual money-changed-hands events are the per-period purchases. Adding `discount` to subscriptions creates ambiguity about whether the field describes the next bill or every past bill. Leave subscriptions alone; surface discounts on purchases only.
+**Discounts on subscriptions:** still **no**. The `priceId` describes the recurring obligation; per-period payment events carry the money-changed-hands truth.
 
-**Rename `purchases` → `payments` or `transactions`?** The current name implies "things bought" — but subscription renewals also land here, and the domain is really "money movements I should be able to show on a statement". `payments` is shortest and most generic; `transactions` is more accurate but the noun overlaps with database transactions and might confuse readers. Author's lean: **`payments`**.
+### 2. Trials — ✅ RE-RESOLVED (dual capability axis)
 
-This rename is bigger than it looks: every method label in error messages (`'purchases.list'`), every conformance suite file (`automated/purchases.ts`), every harness fixture key (`purchaseId`), and the OpenAPI schema names. Worth doing in one PR cleanly before the second provider lands. Mock + Stripe rename is mechanical; the conformance suite is the bulk of the work.
+**History.** Originally resolved as checkout-time-only (Stripe/Polar model), with the explicit caveat: "if a price-attached-trial provider becomes a hard requirement later, the contract will need to rev." The second provider is now **Paddle**, which has native price-level trials and no checkout-level trial. That is exactly the trigger. Decision re-opened and re-resolved as below. The originally-landed shape (`TrialSpec`, checkout-level `trial?`, `trialEnd`, the two trial events) is **unchanged**; the new model is purely additive on top of it.
 
-### 2. Trials
+**The re-resolution: two orthogonal capability axes, not one model choice.**
 
-**Problem.** Stripe and Paddle disagree about where trials live, and neither shape obviously generalizes.
+- `trial.checkoutLevel: boolean` — a `TrialSpec` may be passed to `checkout.createSession`.
+- `trial.priceLevel: boolean` — a `TrialSpec` may be attached to a price (new optional `trial?: TrialSpec` field on the price model).
 
-- **Stripe / Polar pattern:** trial is configured per checkout session: pass `trial_period_days` (or interval+count) when creating the session and the resulting subscription starts in `trialing` status. The same price can be checked out with or without a trial; the price is "neutral".
-- **Paddle pattern:** trial lives on the price itself. Any checkout that uses a price-with-trial gets the trial. To offer the same product without a trial, callers must use a different price.
+| Provider | `trial.checkoutLevel` | `trial.priceLevel` |
+|---|---|---|
+| Stripe | `true` (native) | `true` — emulated: `TrialSpec` stamped in price metadata, read at session create, translated to `trial_period_days` (day/week units only; month/year still `ProviderNotSupportedError`, same constraint as checkout-level) |
+| Paddle | `false` — reject a checkout-level `trial` with `ProviderNotSupportedError(422)` | `true` (native — map Paddle's native trial fields to the price `TrialSpec`) |
+| Polar (future) | `true` | TBD — both covered by these flags, no further rev |
 
-The Stripe/Polar model is strictly more expressive — same price, trial as a checkout-time choice — and matches the mental model of "an offer I can make to this prospect" rather than "an attribute of the SKU". Paddle's model is friendlier to "trial-eligible vs returning customer" gating (the trial is baked in; the consumer doesn't have to decide) but makes "first-time only" semantics harder, not easier (you must select a non-trial price for returning customers; if both prices exist, the consumer's logic has to know which is which).
+A provider rejects the unsupported axis with `ProviderNotSupportedError(422)` before calling the provider, same as any other capability miss. The price-level `trial?` field is **optional**, so it is never a toxic invariant per [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants) — absence on a checkout-only provider is itself the declaration.
 
-**Three options:**
+**Contract delta to land:** add optional `trial?: TrialSpec` to the price model + its schema; add `trial: { checkoutLevel: boolean; priceLevel: boolean }` to `ProviderCapabilities`; keep everything from the original resolution below.
 
-**(A) Adopt Stripe/Polar model. Drop Paddle as the planned second provider; use Polar instead.**
-- Pros: cleanest SDK shape. `checkout.createSession({ trial?: { duration, interval } })`. The SDK never has to expose trials on the price object. No cross-provider normalization gymnastics.
-- Cons: if we later add Paddle (or another price-attached-trial provider), the SDK has to change — either grow a price-level trial field for those providers, or refuse to expose trials on them entirely.
-- Author's note: "polar could be the replacement and then I can keep the better model, but then when I eventually want to expand to more providers, the sdk would have to change."
+The shape from the original resolution (still in force):
 
-**(B) Adopt Paddle's model. Trial lives on `ProviderPrice`.**
-- Pros: every provider can be represented. Paddle works natively; Stripe/Polar adapters translate a price-level trial into a per-checkout `trial_period_days` when creating sessions for that price.
-- Cons: worse caller ergonomics. "Same offer, with or without trial" requires two prices. The trial field on the price model carries different semantics depending on the provider underneath, since some providers can't enforce "first-time only" semantics at the price level.
+- New shared `TrialSpec` model at `packages/provider-sdk/src/models/trial.ts`:
+  ```ts
+  TrialSpec = { count: number; unit: 'day' | 'week' | 'month' | 'year' }
+  ```
+  Reuses `RecurringIntervalSchema` so the unit enum is shared with recurring-price intervals.
+- `checkout.createSession` accepts optional `trial?: TrialSpec`. Adapters reject `trial` on all-one-time carts with `ProviderConstraintError` (semantically incoherent).
+- `ProviderSubscription` gained `trialEnd: Date | null`. Non-null whenever a trial was ever set (Stripe's `trial_end` persists past the actual trial end; the contract treats `trialEnd` as "when the trial concluded or will conclude").
+- `ProviderEventTypeSchema` gained `'subscription.trial_will_end'` and `'subscription.trial_ended'`.
+- `ProviderTestHarness.setup.createSubscription` accepts an optional `trial?: TrialSpec`.
 
-**(C) Both. The contract exposes both: `ProviderPrice.trial?` AND `checkout.createSession({ trial? })`.**
-- Pros: most flexible. Stripe/Polar adapters honor the checkout-time field and ignore the price field. Paddle honors the price field and rejects the checkout field (capability-not-supported). Callers pick the path their provider supports via `provider.capabilities`.
-- Cons: the contract gets bigger. Two ways to do the same thing is a code smell. Forces every caller to read `capabilities` to know which path is supported.
+Adapter notes:
 
-**Recommended path.** Pick **(A)** unless Paddle is a hard requirement. The SDK is small enough to rev cleanly later if a price-attached-trial provider becomes a must-have. Polar is a sensible MoR replacement for Paddle in the initial cut.
+- **Mock** honors all four units via calendar math (`UTC` arithmetic for day/week, `setUTCMonth`/`setUTCFullYear` for month/year). `MockAdmin` exposes `endTrial` and `warnTrialEnding` as test affordances for emitting the two new events.
+- **Stripe checkout** translates `{count, unit:'day'}` to `trial_period_days = count`, `{count, unit:'week'}` to `count × 7`. `month`/`year` units raise `ProviderNotSupportedError` (Stripe has no fixed-day equivalent). Stripe rejects `trial_period_days > 730`; the adapter pre-flights as `ProviderConstraintError`.
+- **Stripe events**: `customer.subscription.trial_will_end` maps to `subscription.trial_will_end` 1:1. `subscription.trial_ended` has no native Stripe event — the normalizer does NOT synthesize one. Consumers wanting trial-ended detection on Stripe diff `status` across `customer.subscription.updated` events themselves. The `subscription.trial_ended` enum value stays in `ProviderEventTypeSchema` for providers (Polar) that emit it natively; Stripe's `webhookEventTypes` capability excludes it so `webhooks.createEndpoint` rejects subscriptions to it with `ProviderNotSupportedError(422)`.
+- **Stripe subscription normalizer** surfaces `trial_end` as `trialEnd` (null when absent).
 
-**Research the next agent should do before deciding:**
+**Trial capability axis on `ProviderCapabilities`?** No. The capability check is enforced at the unit-translation step in the Stripe adapter (`month`/`year` → `ProviderNotSupportedError`), not via a static `ProviderCapabilities` field. Adding a separate axis would duplicate information that's already implicit in the error path.
 
-- Confirm Paddle's behavior: does "checkout with a price-with-trial" always apply the trial, or only the first time per customer? (Author's belief: always, every time — but verify.)
-- Confirm Polar's checkout-time trial API surface (assumed to mirror Stripe; verify).
-- Audit the existing SDK shape: are there any other fields on `ProviderPrice` that already vary in similar "lives where?" ways? If yes, the trial decision should align with how those were resolved.
+### 3. Resource ownership / managed-resource model — ✅ RESOLVED (ownership boundary)
+
+**Resolution: the ownership boundary**, specified in [§Closable vs unclosable invariants](#closable-vs-unclosable-invariants). The SDK normalizes only resources it owns (created, or imported+validated+stamped). Unowned or drifted resources where a structural invariant is required → `ProviderUnmanagedStateError`, never normalized-and-pretended. `import` is the sole sanctioned adoption path for an existing catalog; incompatible resources are rejected at import. Enforced from the first provider; the per-domain `import` primitive may land incrementally but the posture does not.
+
+**Why resolved now, not deferred** (an earlier draft deferred this — wrong): a "normalize anything" products/prices surface breaks the first time a foreign product with one conflicting field is read. The risk is unavoidable, not hypothetical. Polar demonstrates the model is sound *and* that the answer is ownership: it is Stripe underneath, presents this exact strict model successfully, and does so purely by being the exclusive mutation path for resources it creates — never by normalizing arbitrary foreign Stripe products. We can model the shape; we cannot guarantee a foreign resource fits it; therefore admit only owned resources.
+
+**Still future / out of scope here:** if **Polar** is taken on, its product-level price model gets its own capability flag (e.g. `productPriceModel: 'product-owned' | 'price-owned'`) with a capability-conditional `products`/`prices` contract. The Stripe/Paddle shape landing now is forward-compatible with that flag — no rev required. A higher-level CRUD-owning package can close further invariants under *edit out-of-band → your fault*, but adds no normalization power the ownership boundary doesn't already give (metadata ≡ DB in expressiveness).
+
+The original problem write-up is retained below for implementation detail.
+
+**Problem.** Providers disagree about where invariants live, and the SDK can only *enforce* a normalized invariant on resources it created or controls.
+
+Concrete trigger: **Stripe lets one product carry prices of different types** — a one-time price and a recurring price on the same `product`. **Polar fixes the price model at the product level** — a product is recurring *or* one-time, not both. To offer a uniform contract (candidate invariant: *"a product owns whether it is recurring or one-time"*) the SDK would need to enforce on Stripe what Polar enforces natively. We *can* enforce it on Stripe via managed metadata + create/update checks (stamp `__provider_product_price_model` on `products.create`; reject a `prices.create` whose `kind` disagrees). But:
+
+- A product that **already exists**, or one **created natively on the provider** (Stripe dashboard, Stripe API directly), has no marker — we can't retroactively enforce the invariant on it.
+- A product created/stamped by us but later **mutated natively** can drift out of the invariant behind our back.
+
+**This is a recurring theme, not a one-off.** The SDK can already support a wider class of normalized features *only* on resources it stamped:
+
+- **Quantity bounds** — Stripe has no native price-level quantity; the SDK manages `{min,max}` in `__provider_quantity_*`. A natively-created price has no bounds and falls back to the permissive `UNMANAGED_QUANTITY_DEFAULT`.
+- **SDK-authored subscription schedules** — `isSdkAuthoredSchedule` checks `__provider_sdk_schedule` on every normalize; a non-SDK-authored schedule throws `ProviderUnmanagedStateError` (see playbook §14).
+- **Tax-category-raw stash** (`__provider_tax_category_raw`), **anonymous discount-code marker**, **restrictedTo metadata stash** — all the same shape: the SDK reasons safely only about state it wrote.
+
+The product-price-model case is just the first one where the divergence forces a *structural* invariant (not a per-field annotation), which is why it's worth formalizing the pattern now rather than adding a fifth ad-hoc marker.
+
+**Two candidate designs:**
+
+**(A) SDK-owned-only.** Stamp an ownership marker (e.g. `__provider_owned: '1'`) on every `*.create`. Reads of an unmarked resource surface `ProviderUnmanagedStateError`. Strictest and simplest to reason about, but rejects every pre-existing / natively-created resource outright — a hard sell for real users who already have a Stripe catalog.
+
+**(B) Explicit `import` per resource.** Add an `import` method per domain (`products.import({ id })`, etc.) that (1) reads the native resource, (2) validates it against the SDK's structural invariants, (3) **iff compatible**, stamps the ownership/managed metadata so it becomes a first-class SDK resource. Incompatible resources are rejected at import with a clear error (e.g. a Stripe product with mixed price models → `ProviderConstraintError`/`ProviderUnmanagedStateError`). Native resources are otherwise invisible to the normalized surface until imported.
+
+**Open question the design must answer — post-import drift.** Import validates *at import time*. If we import a product (validated single-price-model), then a consumer makes a native change (adds a recurring price to a one-time product), a previously-legit SDK-owned product is now botched. An ownership marker is a *claim stamped once*, not a continuously-enforced guarantee. The contract has to pick one of:
+
+- **Re-validate on every read.** The normalizer re-derives the invariant each time and throws `ProviderUnmanagedStateError` if it's now broken. This already has direct precedent: `isSdkAuthoredSchedule` is re-checked on *every* `normalizeStripeSubscription`, not trusted from a one-time stamp. Consistent with playbook §14's "we mark the boundary; callers handle the fallback — fail loud." Cost: every read re-runs the invariant check (for products, that's "list this product's prices and confirm a single model").
+- **Trust the marker.** Cheaper reads, but a natively-drifted resource silently returns a malformed normalized object — violates the "fail loud" philosophy and is hard to debug downstream.
+
+The schedule-marker precedent strongly suggests **re-validate on read** is the house style; the design work is mostly (a) generalizing it from one ad-hoc check into a per-domain ownership/import primitive, and (b) deciding the read-cost tradeoff (e.g. only re-validate on `get`, accept eventual-consistency on `list`, or expose a `validated: boolean` on the model).
+
+**What the next agent should do:**
+
+1. Decide (A) vs (B). Recommendation: **(B) import + re-validate-on-read**, because real users have existing catalogs (A is too strict) and re-validate-on-read already has precedent (answers the drift question by failing loud on next read instead of returning malformed data).
+2. Inventory which normalized invariants this unlocks beyond product-price-model (quantity bounds enforcement on native prices, etc.) — the design should be a primitive, not a product-only patch.
+3. Decide the ownership marker + reserved key (new `__provider_*` key = contract change; see §`__provider_*` reserved keys) and whether `import` is a new optional domain method or a cross-cutting helper.
+4. Pin it down **before** the Polar adapter's `products`/`prices` are written — Polar enforces product-level price model natively, so it's the reference for what the normalized invariant should look like, and the Stripe adapter's enforcement should mirror Polar's native guarantee.
+
+This decision does **not** block starting the Polar adapter's other domains, but `products`/`prices` should not be finalized until it's settled, or they'll need a second pass.
 
 ---
 
@@ -1110,7 +1193,7 @@ cd packages/provider-stripe
 #  src/__tests__/conformance.fixture.spec.ts (gated on env-var fixtures)
 ```
 
-Domain implementation order that matches mock's complexity progression: customers → products → prices → discounts → checkout → purchases → subscriptions → events → webhooks.
+Domain implementation order that matches mock's complexity progression: customers → products → prices → discounts → checkout → payments → subscriptions → events → webhooks.
 
 ### Stripe-specific things the mock doesn't model
 
@@ -1182,7 +1265,7 @@ async subscription(output) {
   if (native.cancel_at_period_end !== output.cancelAtPeriodEnd) throw new Error(`cancelAtPeriodEnd mismatch`);
   if (native.items.data.length !== output.items.length) throw new Error(`item count mismatch`);
 },
-// ... per model (product, price, discount, purchase, webhookEndpoint)
+// ... per model (product, price, discount, payment, webhookEndpoint)
 ```
 
 Run after every successful write in conformance — the SDK already calls `harness.assertConsistency?.<model>?.(out)` in the right places. You just have to provide the function.
@@ -1207,10 +1290,10 @@ The `STRIPE_FIXTURE_SUBSCRIPTION_ID` MUST be on a different recurring price than
 
 ### Self-setup capabilities
 
-The mock can self-create subscriptions and complete purchases via `admin.createSubscription` / `admin.completePurchase`. Stripe can also do both, but completing a purchase requires a test-mode payment method. Strategy:
+The mock can self-create subscriptions and complete payments via `admin.createSubscription` / `admin.completePayment`. Stripe can also do both, but completing a payment requires a test-mode payment method. Strategy:
 
 - `setup.createSubscription` — use `stripe.subscriptions.create({ customer, items: [{ price, quantity }], payment_behavior: 'default_incomplete' })` and (depending on price) either attach a test PaymentMethod or rely on the default test card. Normalize the result and return.
-- `setup.completePurchase` — Stripe doesn't expose a public "complete this checkout session" API. Options: (a) skip — leave `completePurchase` undefined, accept that self-setup purchase tests will skip cleanly; (b) construct a `PaymentIntent` + `Charge` directly and synthesize a purchase. Option (a) is the pragmatic answer.
+- `setup.completePayment` — Stripe doesn't expose a public "complete this checkout session" API. Options: (a) skip — leave `completePayment` undefined, accept that self-setup payment tests will skip cleanly; (b) construct a `PaymentIntent` + `Charge` directly and synthesize a payment. Option (a) is the pragmatic answer.
 
 ### Sanity checks before you call it done
 
@@ -1225,7 +1308,7 @@ pnpm --filter @its-just-billing/provider-sdk check:conformance-purity
 npx biome check packages/provider-stripe/
 ```
 
-Success criterion: every conformance test either passes against your harness or skips cleanly when a fixture is missing. The mock's 921-test green run is the benchmark — Stripe lands at 890 pass / 6 skip / 0 fail (the 6 skips are `purchases.completePurchase` paths that Stripe has no public API for).
+Success criterion: every conformance test either passes against your harness or skips cleanly when a fixture is missing. The mock's 921-test green run is the benchmark — Stripe lands at 890 pass / 6 skip / 0 fail (the 6 skips are `payments.completePayment` paths that Stripe has no public API for).
 
 ---
 

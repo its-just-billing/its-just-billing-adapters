@@ -16,6 +16,7 @@ import {
 } from '../normalize/checkout.js';
 import { normalizeStripePrice } from '../normalize/price.js';
 import type { StripeCheckoutPresentation } from '../presentation.js';
+import { trialToStripeDays } from '../trial-translation.js';
 
 export function createCheckoutDomain(
   stripe: Stripe,
@@ -124,6 +125,22 @@ export function createCheckoutDomain(
         }
       }
 
+      // Trial: translate the SDK spec to Stripe's `subscription_data.
+      // trial_period_days`. Only meaningful on subscription-mode sessions —
+      // Stripe rejects `subscription_data` on payment-mode sessions, and a
+      // trial on a one-time cart is semantically incoherent. Surface the
+      // mismatch as a ProviderConstraintError rather than letting Stripe
+      // reject opaquely.
+      let trialDays: number | undefined;
+      if (parsed.trial !== undefined) {
+        if (mode !== 'subscription') {
+          throw new ProviderConstraintError({
+            message: `trial is only valid on a checkout session that includes at least one recurring price`,
+          });
+        }
+        trialDays = trialToStripeDays(parsed.trial);
+      }
+
       const params: Stripe.Checkout.SessionCreateParams = {
         mode,
         ui_mode: 'hosted',
@@ -137,6 +154,7 @@ export function createCheckoutDomain(
         ...(parsed.metadata !== undefined ? { metadata: { ...parsed.metadata } } : {}),
         ...(discountParam ? { discounts: [discountParam] } : {}),
         ...(allowPromotionCodes ? { allow_promotion_codes: true } : {}),
+        ...(trialDays !== undefined ? { subscription_data: { trial_period_days: trialDays } } : {}),
       };
 
       try {

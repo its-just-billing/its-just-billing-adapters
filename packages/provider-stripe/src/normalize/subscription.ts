@@ -145,6 +145,21 @@ export function normalizeStripeSubscription(
     pendingChange = null;
   }
 
+  // Stripe keeps `trial_end` populated forever (even long after the trial
+  // ended). The cross-provider SDK contract is narrower: `trialEnd` is
+  // non-null ONLY while the subscription is actively trialing, and null once
+  // the trial concludes. Rationale: some providers null trial_end after the
+  // trial, and the SDK can't fabricate a date for those — so the contract
+  // is the intersection ("a future end while trialing, nothing after"), and
+  // Stripe normalizes "down" to it. `status === 'trialing'` is Stripe's
+  // authoritative "currently in a trial" signal (it flips off 'trialing'
+  // the moment the trial ends), which also subsumes the `trial_end < now`
+  // check without depending on wall-clock time in the normalizer.
+  const trialEnd =
+    status === 'trialing' && typeof native.trial_end === 'number'
+      ? fromUnixSeconds(native.trial_end)
+      : null;
+
   return {
     id: native.id,
     customerId: customerIdOf(native),
@@ -152,6 +167,7 @@ export function normalizeStripeSubscription(
     items,
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
+    trialEnd,
     cancelAtPeriodEnd: native.cancel_at_period_end,
     canceledAt:
       isCanceled && native.canceled_at !== null ? fromUnixSeconds(native.canceled_at) : null,

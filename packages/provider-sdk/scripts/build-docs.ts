@@ -11,27 +11,24 @@
  * The reference page prose is handwritten. This script only fills in the
  * schema fragments; the prose, errors, and examples stay in the markdown body.
  */
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  OpenApiGeneratorV31,
-  OpenAPIRegistry,
-} from '@asteasolutions/zod-to-openapi';
+import { OpenAPIRegistry, OpenApiGeneratorV31 } from '@asteasolutions/zod-to-openapi';
 import type { z } from 'zod';
 
-import * as CustomersSchemas from '../src/schemas/customers/index.js';
-import * as ProductsSchemas from '../src/schemas/products/index.js';
-import * as PricesSchemas from '../src/schemas/prices/index.js';
-import * as SubscriptionsSchemas from '../src/schemas/subscriptions/index.js';
+import * as BillingDocumentsSchemas from '../src/schemas/billing-documents/index.js';
 import * as CheckoutSchemas from '../src/schemas/checkout/index.js';
-import * as PurchasesSchemas from '../src/schemas/purchases/index.js';
+import * as CustomersSchemas from '../src/schemas/customers/index.js';
 import * as DiscountsSchemas from '../src/schemas/discounts/index.js';
 import * as EventsSchemas from '../src/schemas/events/index.js';
-import * as WebhooksSchemas from '../src/schemas/webhooks/index.js';
-import * as PortalSchemas from '../src/schemas/portal/index.js';
-import * as BillingDocumentsSchemas from '../src/schemas/billing-documents/index.js';
 import * as PaymentMethodsSchemas from '../src/schemas/payment-methods/index.js';
+import * as PaymentsSchemas from '../src/schemas/payments/index.js';
+import * as PortalSchemas from '../src/schemas/portal/index.js';
+import * as PricesSchemas from '../src/schemas/prices/index.js';
+import * as ProductsSchemas from '../src/schemas/products/index.js';
+import * as SubscriptionsSchemas from '../src/schemas/subscriptions/index.js';
+import * as WebhooksSchemas from '../src/schemas/webhooks/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
@@ -46,62 +43,287 @@ type Op = {
 
 const OPERATIONS: Op[] = [
   // customers
-  { domain: 'customers', method: 'list', input: CustomersSchemas.CustomersListInputSchema, output: CustomersSchemas.CustomersListOutputSchema },
-  { domain: 'customers', method: 'get', input: CustomersSchemas.CustomersGetInputSchema, output: CustomersSchemas.CustomersGetOutputSchema },
-  { domain: 'customers', method: 'create', input: CustomersSchemas.CustomersCreateInputSchema, output: CustomersSchemas.CustomersCreateOutputSchema },
-  { domain: 'customers', method: 'update', input: CustomersSchemas.CustomersUpdateInputSchema, output: CustomersSchemas.CustomersUpdateOutputSchema },
-  { domain: 'customers', method: 'archive', input: CustomersSchemas.CustomersArchiveInputSchema, output: CustomersSchemas.CustomersArchiveOutputSchema },
+  {
+    domain: 'customers',
+    method: 'list',
+    input: CustomersSchemas.CustomersListInputSchema,
+    output: CustomersSchemas.CustomersListOutputSchema,
+  },
+  {
+    domain: 'customers',
+    method: 'get',
+    input: CustomersSchemas.CustomersGetInputSchema,
+    output: CustomersSchemas.CustomersGetOutputSchema,
+  },
+  {
+    domain: 'customers',
+    method: 'create',
+    input: CustomersSchemas.CustomersCreateInputSchema,
+    output: CustomersSchemas.CustomersCreateOutputSchema,
+  },
+  {
+    domain: 'customers',
+    method: 'update',
+    input: CustomersSchemas.CustomersUpdateInputSchema,
+    output: CustomersSchemas.CustomersUpdateOutputSchema,
+  },
+  {
+    domain: 'customers',
+    method: 'archive',
+    input: CustomersSchemas.CustomersArchiveInputSchema,
+    output: CustomersSchemas.CustomersArchiveOutputSchema,
+  },
   // products
-  { domain: 'products', method: 'list', input: ProductsSchemas.ProductsListInputSchema, output: ProductsSchemas.ProductsListOutputSchema },
-  { domain: 'products', method: 'get', input: ProductsSchemas.ProductsGetInputSchema, output: ProductsSchemas.ProductsGetOutputSchema },
-  { domain: 'products', method: 'create', input: ProductsSchemas.ProductsCreateInputSchema, output: ProductsSchemas.ProductsCreateOutputSchema },
-  { domain: 'products', method: 'update', input: ProductsSchemas.ProductsUpdateInputSchema, output: ProductsSchemas.ProductsUpdateOutputSchema },
-  { domain: 'products', method: 'deactivate', input: ProductsSchemas.ProductsDeactivateInputSchema, output: ProductsSchemas.ProductsDeactivateOutputSchema },
-  { domain: 'products', method: 'activate', input: ProductsSchemas.ProductsActivateInputSchema, output: ProductsSchemas.ProductsActivateOutputSchema },
+  {
+    domain: 'products',
+    method: 'list',
+    input: ProductsSchemas.ProductsListInputSchema,
+    output: ProductsSchemas.ProductsListOutputSchema,
+  },
+  {
+    domain: 'products',
+    method: 'get',
+    input: ProductsSchemas.ProductsGetInputSchema,
+    output: ProductsSchemas.ProductsGetOutputSchema,
+  },
+  {
+    domain: 'products',
+    method: 'create',
+    input: ProductsSchemas.ProductsCreateInputSchema,
+    output: ProductsSchemas.ProductsCreateOutputSchema,
+  },
+  {
+    domain: 'products',
+    method: 'update',
+    input: ProductsSchemas.ProductsUpdateInputSchema,
+    output: ProductsSchemas.ProductsUpdateOutputSchema,
+  },
+  {
+    domain: 'products',
+    method: 'deactivate',
+    input: ProductsSchemas.ProductsDeactivateInputSchema,
+    output: ProductsSchemas.ProductsDeactivateOutputSchema,
+  },
+  {
+    domain: 'products',
+    method: 'activate',
+    input: ProductsSchemas.ProductsActivateInputSchema,
+    output: ProductsSchemas.ProductsActivateOutputSchema,
+  },
   // prices
-  { domain: 'prices', method: 'list', input: PricesSchemas.PricesListInputSchema, output: PricesSchemas.PricesListOutputSchema },
-  { domain: 'prices', method: 'get', input: PricesSchemas.PricesGetInputSchema, output: PricesSchemas.PricesGetOutputSchema },
-  { domain: 'prices', method: 'create', input: PricesSchemas.PricesCreateInputSchema, output: PricesSchemas.PricesCreateOutputSchema },
-  { domain: 'prices', method: 'update', input: PricesSchemas.PricesUpdateInputSchema, output: PricesSchemas.PricesUpdateOutputSchema },
-  { domain: 'prices', method: 'deactivate', input: PricesSchemas.PricesDeactivateInputSchema, output: PricesSchemas.PricesDeactivateOutputSchema },
-  { domain: 'prices', method: 'activate', input: PricesSchemas.PricesActivateInputSchema, output: PricesSchemas.PricesActivateOutputSchema },
+  {
+    domain: 'prices',
+    method: 'list',
+    input: PricesSchemas.PricesListInputSchema,
+    output: PricesSchemas.PricesListOutputSchema,
+  },
+  {
+    domain: 'prices',
+    method: 'get',
+    input: PricesSchemas.PricesGetInputSchema,
+    output: PricesSchemas.PricesGetOutputSchema,
+  },
+  {
+    domain: 'prices',
+    method: 'create',
+    input: PricesSchemas.PricesCreateInputSchema,
+    output: PricesSchemas.PricesCreateOutputSchema,
+  },
+  {
+    domain: 'prices',
+    method: 'update',
+    input: PricesSchemas.PricesUpdateInputSchema,
+    output: PricesSchemas.PricesUpdateOutputSchema,
+  },
+  {
+    domain: 'prices',
+    method: 'deactivate',
+    input: PricesSchemas.PricesDeactivateInputSchema,
+    output: PricesSchemas.PricesDeactivateOutputSchema,
+  },
+  {
+    domain: 'prices',
+    method: 'activate',
+    input: PricesSchemas.PricesActivateInputSchema,
+    output: PricesSchemas.PricesActivateOutputSchema,
+  },
   // subscriptions
-  { domain: 'subscriptions', method: 'list', input: SubscriptionsSchemas.SubscriptionsListInputSchema, output: SubscriptionsSchemas.SubscriptionsListOutputSchema },
-  { domain: 'subscriptions', method: 'get', input: SubscriptionsSchemas.SubscriptionsGetInputSchema, output: SubscriptionsSchemas.SubscriptionsGetOutputSchema },
-  { domain: 'subscriptions', method: 'cancel', input: SubscriptionsSchemas.SubscriptionsCancelInputSchema, output: SubscriptionsSchemas.SubscriptionsCancelOutputSchema },
-  { domain: 'subscriptions', method: 'change', input: SubscriptionsSchemas.SubscriptionsChangeInputSchema, output: SubscriptionsSchemas.SubscriptionsChangeOutputSchema },
-  { domain: 'subscriptions', method: 'cancelScheduledChange', input: SubscriptionsSchemas.SubscriptionsCancelScheduledChangeInputSchema, output: SubscriptionsSchemas.SubscriptionsCancelScheduledChangeOutputSchema },
+  {
+    domain: 'subscriptions',
+    method: 'list',
+    input: SubscriptionsSchemas.SubscriptionsListInputSchema,
+    output: SubscriptionsSchemas.SubscriptionsListOutputSchema,
+  },
+  {
+    domain: 'subscriptions',
+    method: 'get',
+    input: SubscriptionsSchemas.SubscriptionsGetInputSchema,
+    output: SubscriptionsSchemas.SubscriptionsGetOutputSchema,
+  },
+  {
+    domain: 'subscriptions',
+    method: 'cancel',
+    input: SubscriptionsSchemas.SubscriptionsCancelInputSchema,
+    output: SubscriptionsSchemas.SubscriptionsCancelOutputSchema,
+  },
+  {
+    domain: 'subscriptions',
+    method: 'change',
+    input: SubscriptionsSchemas.SubscriptionsChangeInputSchema,
+    output: SubscriptionsSchemas.SubscriptionsChangeOutputSchema,
+  },
+  {
+    domain: 'subscriptions',
+    method: 'cancelScheduledChange',
+    input: SubscriptionsSchemas.SubscriptionsCancelScheduledChangeInputSchema,
+    output: SubscriptionsSchemas.SubscriptionsCancelScheduledChangeOutputSchema,
+  },
   // checkout
-  { domain: 'checkout', method: 'createSession', input: CheckoutSchemas.CheckoutCreateSessionInputSchema, output: CheckoutSchemas.CheckoutCreateSessionOutputSchema },
-  { domain: 'checkout', method: 'getSession', input: CheckoutSchemas.CheckoutGetSessionInputSchema, output: CheckoutSchemas.CheckoutGetSessionOutputSchema },
-  // purchases
-  { domain: 'purchases', method: 'list', input: PurchasesSchemas.PurchasesListInputSchema, output: PurchasesSchemas.PurchasesListOutputSchema },
-  { domain: 'purchases', method: 'get', input: PurchasesSchemas.PurchasesGetInputSchema, output: PurchasesSchemas.PurchasesGetOutputSchema },
+  {
+    domain: 'checkout',
+    method: 'createSession',
+    input: CheckoutSchemas.CheckoutCreateSessionInputSchema,
+    output: CheckoutSchemas.CheckoutCreateSessionOutputSchema,
+  },
+  {
+    domain: 'checkout',
+    method: 'getSession',
+    input: CheckoutSchemas.CheckoutGetSessionInputSchema,
+    output: CheckoutSchemas.CheckoutGetSessionOutputSchema,
+  },
+  // payments
+  {
+    domain: 'payments',
+    method: 'list',
+    input: PaymentsSchemas.PaymentsListInputSchema,
+    output: PaymentsSchemas.PaymentsListOutputSchema,
+  },
+  {
+    domain: 'payments',
+    method: 'get',
+    input: PaymentsSchemas.PaymentsGetInputSchema,
+    output: PaymentsSchemas.PaymentsGetOutputSchema,
+  },
   // discounts
-  { domain: 'discounts', method: 'list', input: DiscountsSchemas.DiscountsListInputSchema, output: DiscountsSchemas.DiscountsListOutputSchema },
-  { domain: 'discounts', method: 'get', input: DiscountsSchemas.DiscountsGetInputSchema, output: DiscountsSchemas.DiscountsGetOutputSchema },
-  { domain: 'discounts', method: 'create', input: DiscountsSchemas.DiscountsCreateInputSchema, output: DiscountsSchemas.DiscountsCreateOutputSchema },
-  { domain: 'discounts', method: 'update', input: DiscountsSchemas.DiscountsUpdateInputSchema, output: DiscountsSchemas.DiscountsUpdateOutputSchema },
-  { domain: 'discounts', method: 'deactivate', input: DiscountsSchemas.DiscountsDeactivateInputSchema, output: DiscountsSchemas.DiscountsDeactivateOutputSchema },
-  { domain: 'discounts', method: 'activate', input: DiscountsSchemas.DiscountsActivateInputSchema, output: DiscountsSchemas.DiscountsActivateOutputSchema },
+  {
+    domain: 'discounts',
+    method: 'list',
+    input: DiscountsSchemas.DiscountsListInputSchema,
+    output: DiscountsSchemas.DiscountsListOutputSchema,
+  },
+  {
+    domain: 'discounts',
+    method: 'get',
+    input: DiscountsSchemas.DiscountsGetInputSchema,
+    output: DiscountsSchemas.DiscountsGetOutputSchema,
+  },
+  {
+    domain: 'discounts',
+    method: 'create',
+    input: DiscountsSchemas.DiscountsCreateInputSchema,
+    output: DiscountsSchemas.DiscountsCreateOutputSchema,
+  },
+  {
+    domain: 'discounts',
+    method: 'update',
+    input: DiscountsSchemas.DiscountsUpdateInputSchema,
+    output: DiscountsSchemas.DiscountsUpdateOutputSchema,
+  },
+  {
+    domain: 'discounts',
+    method: 'deactivate',
+    input: DiscountsSchemas.DiscountsDeactivateInputSchema,
+    output: DiscountsSchemas.DiscountsDeactivateOutputSchema,
+  },
+  {
+    domain: 'discounts',
+    method: 'activate',
+    input: DiscountsSchemas.DiscountsActivateInputSchema,
+    output: DiscountsSchemas.DiscountsActivateOutputSchema,
+  },
   // events
-  { domain: 'events', method: 'list', input: EventsSchemas.EventsListInputSchema, output: EventsSchemas.EventsListOutputSchema },
-  { domain: 'events', method: 'get', input: EventsSchemas.EventsGetInputSchema, output: EventsSchemas.EventsGetOutputSchema },
+  {
+    domain: 'events',
+    method: 'list',
+    input: EventsSchemas.EventsListInputSchema,
+    output: EventsSchemas.EventsListOutputSchema,
+  },
+  {
+    domain: 'events',
+    method: 'get',
+    input: EventsSchemas.EventsGetInputSchema,
+    output: EventsSchemas.EventsGetOutputSchema,
+  },
   // webhooks
-  { domain: 'webhooks', method: 'listEndpoints', input: WebhooksSchemas.WebhooksListEndpointsInputSchema, output: WebhooksSchemas.WebhooksListEndpointsOutputSchema },
-  { domain: 'webhooks', method: 'createEndpoint', input: WebhooksSchemas.WebhooksCreateEndpointInputSchema, output: WebhooksSchemas.WebhooksCreateEndpointOutputSchema },
-  { domain: 'webhooks', method: 'updateEndpoint', input: WebhooksSchemas.WebhooksUpdateEndpointInputSchema, output: WebhooksSchemas.WebhooksUpdateEndpointOutputSchema },
-  { domain: 'webhooks', method: 'activateEndpoint', input: WebhooksSchemas.WebhooksActivateEndpointInputSchema, output: WebhooksSchemas.WebhooksActivateEndpointOutputSchema },
-  { domain: 'webhooks', method: 'deactivateEndpoint', input: WebhooksSchemas.WebhooksDeactivateEndpointInputSchema, output: WebhooksSchemas.WebhooksDeactivateEndpointOutputSchema },
-  { domain: 'webhooks', method: 'deleteEndpoint', input: WebhooksSchemas.WebhooksDeleteEndpointInputSchema, output: WebhooksSchemas.WebhooksDeleteEndpointOutputSchema },
-  { domain: 'webhooks', method: 'verify', input: WebhooksSchemas.WebhooksVerifyInputSchema, output: WebhooksSchemas.WebhooksVerifyOutputSchema },
+  {
+    domain: 'webhooks',
+    method: 'listEndpoints',
+    input: WebhooksSchemas.WebhooksListEndpointsInputSchema,
+    output: WebhooksSchemas.WebhooksListEndpointsOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'createEndpoint',
+    input: WebhooksSchemas.WebhooksCreateEndpointInputSchema,
+    output: WebhooksSchemas.WebhooksCreateEndpointOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'updateEndpoint',
+    input: WebhooksSchemas.WebhooksUpdateEndpointInputSchema,
+    output: WebhooksSchemas.WebhooksUpdateEndpointOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'activateEndpoint',
+    input: WebhooksSchemas.WebhooksActivateEndpointInputSchema,
+    output: WebhooksSchemas.WebhooksActivateEndpointOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'deactivateEndpoint',
+    input: WebhooksSchemas.WebhooksDeactivateEndpointInputSchema,
+    output: WebhooksSchemas.WebhooksDeactivateEndpointOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'deleteEndpoint',
+    input: WebhooksSchemas.WebhooksDeleteEndpointInputSchema,
+    output: WebhooksSchemas.WebhooksDeleteEndpointOutputSchema,
+  },
+  {
+    domain: 'webhooks',
+    method: 'verify',
+    input: WebhooksSchemas.WebhooksVerifyInputSchema,
+    output: WebhooksSchemas.WebhooksVerifyOutputSchema,
+  },
   // portal (optional)
-  { domain: 'portal', method: 'createSession', input: PortalSchemas.PortalCreateSessionInputSchema, output: PortalSchemas.PortalCreateSessionOutputSchema },
+  {
+    domain: 'portal',
+    method: 'createSession',
+    input: PortalSchemas.PortalCreateSessionInputSchema,
+    output: PortalSchemas.PortalCreateSessionOutputSchema,
+  },
   // billingDocuments (optional)
-  { domain: 'billing-documents', method: 'list', input: BillingDocumentsSchemas.BillingDocumentsListInputSchema, output: BillingDocumentsSchemas.BillingDocumentsListOutputSchema },
-  { domain: 'billing-documents', method: 'get', input: BillingDocumentsSchemas.BillingDocumentsGetInputSchema, output: BillingDocumentsSchemas.BillingDocumentsGetOutputSchema },
+  {
+    domain: 'billing-documents',
+    method: 'list',
+    input: BillingDocumentsSchemas.BillingDocumentsListInputSchema,
+    output: BillingDocumentsSchemas.BillingDocumentsListOutputSchema,
+  },
+  {
+    domain: 'billing-documents',
+    method: 'get',
+    input: BillingDocumentsSchemas.BillingDocumentsGetInputSchema,
+    output: BillingDocumentsSchemas.BillingDocumentsGetOutputSchema,
+  },
   // paymentMethods (optional)
-  { domain: 'payment-methods', method: 'list', input: PaymentMethodsSchemas.PaymentMethodsListInputSchema, output: PaymentMethodsSchemas.PaymentMethodsListOutputSchema },
+  {
+    domain: 'payment-methods',
+    method: 'list',
+    input: PaymentMethodsSchemas.PaymentMethodsListInputSchema,
+    output: PaymentMethodsSchemas.PaymentMethodsListOutputSchema,
+  },
 ];
 
 export function getOperations(): readonly Op[] {

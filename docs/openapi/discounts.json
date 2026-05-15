@@ -61,7 +61,23 @@
                 ]
               },
               "amountOff": {
-                "$ref": "#/components/schemas/Money"
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "description": "Amount in minor units; must be at least 1",
+                        "example": 1999
+                      }
+                    }
+                  }
+                ],
+                "description": "A monetary amount in minor units plus ISO currency"
               }
             },
             "required": [
@@ -345,12 +361,6 @@
             "type": "string",
             "minLength": 1
           },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           }
@@ -358,7 +368,7 @@
         "required": [
           "id"
         ],
-        "description": "Mutable fields only. Benefit, duration, code, and redemption limit are immutable post-create. `active` is excluded — use `deactivate` / `activate` for state changes."
+        "description": "Mutable fields only. Benefit, duration, code, redemption limit, and expiration are immutable post-create — Stripe and Paddle both treat `expires_at` as create-only on the promotion code, and changing the discount value semantics after issue would surprise customers who hold redeemable codes. `active` is excluded — use `deactivate` / `activate` for state changes."
       },
       "DiscountsDeactivateInput": {
         "type": "object",

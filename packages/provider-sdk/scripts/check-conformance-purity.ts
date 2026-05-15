@@ -5,8 +5,8 @@
  * Wired into the test-process.md runbook step 3; run before merging changes
  * to the conformance suite.
  */
-import { readdir, readFile } from 'node:fs/promises';
-import { join, resolve, dirname } from 'node:path';
+import { readFile, readdir } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

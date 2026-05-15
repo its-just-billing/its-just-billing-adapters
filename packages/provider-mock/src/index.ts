@@ -5,9 +5,9 @@ import { createCheckoutDomain } from './domains/checkout.js';
 import { createCustomersDomain } from './domains/customers.js';
 import { createDiscountsDomain } from './domains/discounts.js';
 import { createEventsDomain } from './domains/events.js';
+import { createPaymentsDomain } from './domains/payments.js';
 import { createPricesDomain } from './domains/prices.js';
 import { createProductsDomain } from './domains/products.js';
-import { createPurchasesDomain } from './domains/purchases.js';
 import { createSubscriptionsDomain } from './domains/subscriptions.js';
 import { createWebhooksDomain } from './domains/webhooks.js';
 import type { MockCheckoutPresentation } from './presentation.js';
@@ -34,10 +34,10 @@ export function createMockProvider(): MockProvider {
     prices: createPricesDomain(state, MOCK_CAPABILITIES),
     subscriptions: createSubscriptionsDomain(state),
     checkout: createCheckoutDomain(state),
-    purchases: createPurchasesDomain(state),
+    payments: createPaymentsDomain(state),
     discounts: createDiscountsDomain(state),
     events: createEventsDomain(state),
-    webhooks: createWebhooksDomain(state),
+    webhooks: createWebhooksDomain(state, MOCK_CAPABILITIES),
     raw: state,
     admin: createMockAdmin(state),
   };

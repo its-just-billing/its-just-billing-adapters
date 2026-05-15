@@ -6,6 +6,7 @@ import {
   createStripeProvider,
 } from './index.js';
 import { normalizeStripeSubscription } from './normalize/subscription.js';
+import { trialToStripeDays } from './trial-translation.js';
 
 /**
  * Build a conformance harness for the Stripe adapter.
@@ -32,8 +33,8 @@ import { normalizeStripeSubscription } from './normalize/subscription.js';
  *                                            from the one the seeded subscription
  *                                            rides on — see SEEDED_FIXTURE_NOTES).
  *   STRIPE_FIXTURE_ONE_TIME_PRICE_ID      — active one-time price on the product.
- *   STRIPE_FIXTURE_SUBSCRIPTION_ID        — trialing subscription on a DIFFERENT
- *                                            recurring price than
+ *   STRIPE_FIXTURE_SUBSCRIPTION_ID        — active (or trialing) subscription on
+ *                                            a DIFFERENT recurring price than
  *                                            STRIPE_FIXTURE_RECURRING_PRICE_ID
  *                                            (price-change scenario short-circuits
  *                                            when sub is already on the swap target).
@@ -54,6 +55,31 @@ export interface CreateStripeHarnessOptions {
    * spec file so the fixture conformance suite has everything it needs.
    */
   seedFixtures?: boolean;
+}
+
+/**
+ * Attach Stripe's canonical test card (`tok_visa` → 4242 4242 4242 4242,
+ * always succeeds in test mode) to a customer and make it the default for
+ * invoices. This lets `stripe.subscriptions.create` settle the first invoice
+ * synchronously so the subscription lands `active` — the realistic
+ * "signed up with a card" flow.
+ *
+ * Without a default payment method (and no trial) Stripe creates the
+ * subscription in `incomplete` status and then blocks the invoice-affecting
+ * mutations (`change`, `cancel`, `cancelScheduledChange`) the conformance
+ * suite exercises. We use a real test card rather than the old
+ * `trial_period_days: 365` trick so the harness mirrors production behavior
+ * instead of leaning on a year-long trial as a side effect.
+ */
+async function attachTestPaymentMethod(stripe: Stripe, customerId: string): Promise<void> {
+  const pm = await stripe.paymentMethods.create({
+    type: 'card',
+    card: { token: 'tok_visa' },
+  });
+  await stripe.paymentMethods.attach(pm.id, { customer: customerId });
+  await stripe.customers.update(customerId, {
+    invoice_settings: { default_payment_method: pm.id },
+  });
 }
 
 /**
@@ -86,23 +112,34 @@ export async function createStripeHarness(
     label: 'stripe',
     provider,
     setup: {
-      async createSubscription({ customerId, priceId, quantity = 1 }) {
-        // Use a trial so the resulting subscription lands in `status='trialing'`
-        // without needing a payment method or invoice settlement. Stripe
-        // blocks invoice-affecting mutations on `incomplete` subs (which is
-        // what `payment_behavior: 'default_incomplete'` produces), so a
-        // trialing sub is what the conformance change/cancel tests actually
-        // need.
+      async createSubscription({ customerId, priceId, quantity = 1, trial }) {
+        // Realistic flow: attach a test card and let Stripe settle the first
+        // invoice so the subscription lands `active` (or `trialing` when a
+        // trial is requested). Both states are mutable, which the conformance
+        // change/cancel tests need; `incomplete` (no card, no trial) is not.
+        await attachTestPaymentMethod(stripe, customerId);
+
+        // When the caller passes `trial` explicitly, honor it exactly — same
+        // semantics as `checkout.createSession`. Stripe's `trial_period_days`
+        // only accepts day-level trials, so month/year units have no fixed-
+        // day equivalent and surface as ProviderNotSupportedError (via
+        // `trialToStripeDays`) rather than a silent approximation. When no
+        // trial is passed, none is set — matching the public API.
+        const trialDays = trial !== undefined ? trialToStripeDays(trial) : undefined;
         const native = await stripe.subscriptions.create({
           customer: customerId,
           items: [{ price: priceId, quantity }],
-          trial_period_days: 365,
+          // Fail loudly if the first invoice can't settle synchronously
+          // rather than returning a silently-incomplete sub that later
+          // mutation tests would fail against confusingly.
+          payment_behavior: 'error_if_incomplete',
+          ...(trialDays !== undefined ? { trial_period_days: trialDays } : {}),
         });
         return normalizeStripeSubscription(native);
       },
-      // completePurchase: Stripe has no public "complete this checkout
+      // completePayment: Stripe has no public "complete this checkout
       // session" API. Leaving it undefined means the semi-manual + self-setup
-      // purchase tests skip cleanly.
+      // payment tests skip cleanly.
     },
     ...(Object.keys(fixtures).length > 0 ? { fixtures } : {}),
     assertConsistency: {
@@ -228,8 +265,7 @@ export async function createStripeHarness(
           } catch {
             return;
           }
-          const couponId =
-            typeof promo.coupon === 'string' ? promo.coupon : promo.coupon.id;
+          const couponId = typeof promo.coupon === 'string' ? promo.coupon : promo.coupon.id;
           await stripe.coupons.del(couponId);
           return;
         }
@@ -317,12 +353,14 @@ async function seedAllFixtures(stripe: Stripe): Promise<SeededFixtures> {
   });
 
   // Subscriptions need to be 'active' or 'trialing' per the fixture-suite
-  // contract. A trial keeps us in 'trialing' without provisioning a payment
-  // method; the trial window outlives any test run.
+  // contract. Attach a test card and let the first invoice settle so the
+  // seeded subscription lands `active` — the realistic flow, mirroring how
+  // `setup.createSubscription` now works (no year-long-trial side effect).
+  await attachTestPaymentMethod(stripe, customer.id);
   const subscription = await stripe.subscriptions.create({
     customer: customer.id,
     items: [{ price: subscriptionPrice.id }],
-    trial_period_days: 365,
+    payment_behavior: 'error_if_incomplete',
   });
 
   // Coupon + PromotionCode pair, matching the adapter's discounts model.

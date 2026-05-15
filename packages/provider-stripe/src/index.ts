@@ -4,9 +4,9 @@ import type {
   Customers,
   Discounts,
   Events,
+  Payments,
   Prices,
   Products,
-  Purchases,
   Subscriptions,
   Webhooks,
 } from '@its-just-billing/provider-sdk';
@@ -16,9 +16,9 @@ import { createCheckoutDomain } from './domains/checkout.js';
 import { createCustomersDomain } from './domains/customers.js';
 import { createDiscountsDomain } from './domains/discounts.js';
 import { createEventsDomain } from './domains/events.js';
+import { createPaymentsDomain } from './domains/payments.js';
 import { createPricesDomain } from './domains/prices.js';
 import { createProductsDomain } from './domains/products.js';
-import { createPurchasesDomain } from './domains/purchases.js';
 import { createSubscriptionsDomain } from './domains/subscriptions.js';
 import { createWebhooksDomain } from './domains/webhooks.js';
 import type { StripeCheckoutPresentation } from './presentation.js';
@@ -30,7 +30,7 @@ export { mapStripeError, isStripeNotFound } from './error-mapping.js';
 export { normalizeStripeCustomer } from './normalize/customer.js';
 export { normalizeStripeProduct } from './normalize/product.js';
 export { normalizeStripePrice } from './normalize/price.js';
-export { normalizeStripeCharge } from './normalize/purchase.js';
+export { normalizeStripeCharge } from './normalize/payment.js';
 export { normalizeStripeSubscription } from './normalize/subscription.js';
 export { normalizeStripeCheckoutSession } from './normalize/checkout.js';
 export { normalizeStripePromotionCode } from './normalize/discount.js';
@@ -51,7 +51,7 @@ export interface StripeProvider extends BillingProvider<StripeCheckoutPresentati
   products: Products<Stripe.Product>;
   prices: Prices<Stripe.Price>;
   subscriptions: Subscriptions<Stripe.Subscription>;
-  purchases: Purchases<Stripe.Charge>;
+  payments: Payments<Stripe.Charge>;
   discounts: Discounts<Stripe.PromotionCode>;
   events: Events<unknown, Stripe.Event>;
   webhooks: Webhooks<Stripe.WebhookEndpoint, Stripe.Event>;
@@ -92,7 +92,7 @@ export function createStripeProvider(opts: CreateStripeProviderOptions): StripeP
     prices: createPricesDomain(stripe, STRIPE_CAPABILITIES),
     subscriptions: createSubscriptionsDomain(stripe),
     checkout: createCheckoutDomain(stripe),
-    purchases: createPurchasesDomain(stripe),
+    payments: createPaymentsDomain(stripe),
     discounts: createDiscountsDomain(stripe),
     events: createEventsDomain(stripe),
     webhooks: createWebhooksDomain(stripe),

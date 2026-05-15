@@ -1,6 +1,6 @@
 import { describe } from 'vitest';
 import type { ProviderTestHarness } from '../../harness.js';
-import { registerPurchasesSelfSetupSuite } from './purchases.js';
+import { registerPaymentsSelfSetupSuite } from './payments.js';
 import { registerSubscriptionsSelfSetupSuite } from './subscriptions.js';
 
 type HarnessFactory = () => ProviderTestHarness | Promise<ProviderTestHarness>;
@@ -13,6 +13,6 @@ type HarnessFactory = () => ProviderTestHarness | Promise<ProviderTestHarness>;
 export function registerSelfSetupSuite(label: string, factory: HarnessFactory): void {
   describe(`[self-setup] ${label}`, () => {
     registerSubscriptionsSelfSetupSuite(label, factory);
-    registerPurchasesSelfSetupSuite(label, factory);
+    registerPaymentsSelfSetupSuite(label, factory);
   });
 }

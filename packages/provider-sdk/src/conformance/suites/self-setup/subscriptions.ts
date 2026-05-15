@@ -75,6 +75,22 @@ export function registerSubscriptionsSelfSetupSuite(
     expect(Number.isFinite((rec.currentPeriodStart as Date).getTime())).toBe(true);
     expect(Number.isFinite((rec.currentPeriodEnd as Date).getTime())).toBe(true);
 
+    // trialEnd bidirectional invariant (cross-provider contract): non-null
+    // IFF the subscription is actively trialing. Not trialing (active,
+    // canceled, past_due, …) MUST be null — even for providers like Stripe
+    // that keep their native trial-end populated forever; the adapter
+    // normalizes it down to null. A provider that nulls trial-end after the
+    // trial can't be normalized "up" to a date, so the SDK never promises
+    // one post-trial. (When trialing, the precise future-window is checked
+    // by the dedicated trial round-trip test below.)
+    expect(rec.trialEnd === null || rec.trialEnd instanceof Date).toBe(true);
+    if (rec.status === 'trialing') {
+      expect(rec.trialEnd).toBeInstanceOf(Date);
+      expect(Number.isFinite((rec.trialEnd as Date).getTime())).toBe(true);
+    } else {
+      expect(rec.trialEnd).toBeNull();
+    }
+
     expect(typeof rec.cancelAtPeriodEnd).toBe('boolean');
     expect(rec.canceledAt === null || rec.canceledAt instanceof Date).toBe(true);
 
@@ -450,6 +466,55 @@ export function registerSubscriptionsSelfSetupSuite(
             const status = (err as ProviderConflictError | ProviderConstraintError).status;
             expect(status === 409 || status === 422).toBe(true);
           }
+        },
+      );
+    });
+
+    // -------------------------------------------------------------------------
+    // Trial round-trip (uses setup.createSubscription({ trial }))
+    // -------------------------------------------------------------------------
+    describe('subscriptions trial', () => {
+      lazySkipIf(() => !harness?.setup?.createSubscription)(
+        'createSubscription({ trial: { count, unit: "day" } }) returns a trialing subscription with trialEnd set',
+        async () => {
+          if (!harness.setup?.createSubscription) return; // unreachable per skipIf
+          const customer = await provider.customers.create({});
+          await harness.assertConsistency?.customer?.(customer);
+          const product = await provider.products.create({
+            name: 'trial-fixture',
+            taxCategory: 'saas',
+          });
+          await harness.assertConsistency?.product?.(product);
+          const price = await provider.prices.create({
+            productId: product.id,
+            currency: 'usd',
+            kind: 'recurring',
+            unitAmount: 999,
+            interval: 'month',
+          } as any);
+          await harness.assertConsistency?.price?.(price);
+
+          const before = Date.now();
+          const sub = await harness.setup.createSubscription({
+            customerId: customer.id,
+            priceId: price.id,
+            trial: { count: 14, unit: 'day' },
+          });
+          const after = Date.now();
+          expectIsSubscription(sub);
+          await harness.assertConsistency?.subscription?.(sub);
+
+          expect(sub.status).toBe('trialing');
+          expect(sub.trialEnd).toBeInstanceOf(Date);
+          // trialEnd should land roughly 14 days after the moment the
+          // subscription was created. Use a wide tolerance (±2 days) to
+          // accommodate clock skew and provider rounding (Stripe's
+          // `trial_period_days` rounds to whole days).
+          const expectedMin = before + 14 * 24 * 60 * 60 * 1000 - 2 * 24 * 60 * 60 * 1000;
+          const expectedMax = after + 14 * 24 * 60 * 60 * 1000 + 2 * 24 * 60 * 60 * 1000;
+          const trialEndMs = (sub.trialEnd as Date).getTime();
+          expect(trialEndMs).toBeGreaterThanOrEqual(expectedMin);
+          expect(trialEndMs).toBeLessThanOrEqual(expectedMax);
         },
       );
     });

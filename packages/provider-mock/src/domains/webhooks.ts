@@ -1,6 +1,9 @@
 import {
+  type ProviderCapabilities,
   ProviderEventSchema,
+  type ProviderEventType,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   type ProviderWebhookEndpoint,
   Schemas,
   WebhookSignatureError,
@@ -27,7 +30,32 @@ function freshSecret(): string {
   return `whsec_mock_${Math.random().toString(36).slice(2, 18)}`;
 }
 
-export function createWebhooksDomain(state: MockState): Webhooks {
+/**
+ * Reject `eventTypes` containing values outside the provider's webhook
+ * capability set. The contract is "any subscribed event must be one this
+ * provider can actually fire" — surfacing `ProviderNotSupportedError(422)`
+ * before persisting the endpoint matches the pattern for currency / tax
+ * category capabilities.
+ */
+function assertSupportedEventTypes(
+  capabilities: ProviderCapabilities,
+  eventTypes: readonly ProviderEventType[],
+): void {
+  for (const t of eventTypes) {
+    if (!capabilities.webhookEventTypes.has(t)) {
+      throw new ProviderNotSupportedError({
+        feature: 'webhookEventType',
+        value: t,
+        message: `Provider does not emit ${t}; webhook endpoints cannot subscribe to it.`,
+      });
+    }
+  }
+}
+
+export function createWebhooksDomain(
+  state: MockState,
+  capabilities: ProviderCapabilities,
+): Webhooks {
   return {
     async listEndpoints(input) {
       validate(Schemas.Webhooks.WebhooksListEndpointsInputSchema, input, 'webhooks.listEndpoints');
@@ -44,6 +72,7 @@ export function createWebhooksDomain(state: MockState): Webhooks {
         input,
         'webhooks.createEndpoint',
       );
+      assertSupportedEventTypes(capabilities, parsed.eventTypes);
       const record: InternalWebhookEndpoint = {
         id: nextId('wh'),
         url: parsed.url,
@@ -62,6 +91,9 @@ export function createWebhooksDomain(state: MockState): Webhooks {
         input,
         'webhooks.updateEndpoint',
       );
+      if (parsed.eventTypes !== undefined) {
+        assertSupportedEventTypes(capabilities, parsed.eventTypes);
+      }
       const existing = state.webhookEndpoints.get(parsed.id);
       if (!existing) {
         throw new ProviderNotFoundError({ message: `Webhook endpoint ${parsed.id} not found` });

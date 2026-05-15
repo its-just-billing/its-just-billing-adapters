@@ -1,18 +1,39 @@
 import {
   ProviderEventSchema,
+  type ProviderEventType,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   Schemas,
   WebhookSignatureError,
   type Webhooks,
   validate,
 } from '@its-just-billing/provider-sdk';
 import type Stripe from 'stripe';
+import { STRIPE_CAPABILITIES } from '../capabilities.js';
 import { isStripeNotFound, mapStripeError } from '../error-mapping.js';
 import { maybeNormalizeStripeEvent } from '../normalize/event.js';
 import {
   normalizeStripeWebhookEndpoint,
   normalizedEventsToStripe,
 } from '../normalize/webhook-endpoint.js';
+
+/**
+ * Reject `eventTypes` containing values Stripe doesn't emit. Stripe's own
+ * `webhookEndpoints.create` would accept any string and silently never fire,
+ * so we pre-flight against the normalized capability set and surface a clean
+ * `ProviderNotSupportedError(422)`.
+ */
+function assertSupportedEventTypes(eventTypes: readonly ProviderEventType[]): void {
+  for (const t of eventTypes) {
+    if (!STRIPE_CAPABILITIES.webhookEventTypes.has(t)) {
+      throw new ProviderNotSupportedError({
+        feature: 'webhookEventType',
+        value: t,
+        message: `Stripe does not emit ${t}; webhook endpoints cannot subscribe to it.`,
+      });
+    }
+  }
+}
 
 export function createWebhooksDomain(
   stripe: Stripe,
@@ -40,6 +61,7 @@ export function createWebhooksDomain(
         input,
         'webhooks.createEndpoint',
       );
+      assertSupportedEventTypes(parsed.eventTypes);
       const enabledEvents = normalizedEventsToStripe(parsed.eventTypes);
       try {
         const native = await stripe.webhookEndpoints.create({
@@ -63,6 +85,9 @@ export function createWebhooksDomain(
         input,
         'webhooks.updateEndpoint',
       );
+      if (parsed.eventTypes !== undefined) {
+        assertSupportedEventTypes(parsed.eventTypes);
+      }
       const params: Stripe.WebhookEndpointUpdateParams = {
         ...(parsed.url !== undefined ? { url: parsed.url } : {}),
         ...(parsed.eventTypes !== undefined

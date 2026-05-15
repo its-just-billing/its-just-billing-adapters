@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderNotSupportedError } from '../../../errors/index.js';
-import type { BillingProvider, ProviderProduct, TaxCategory } from '../../../index.js';
+import type {
+  BillingProvider,
+  ProviderEventType,
+  ProviderProduct,
+  TaxCategory,
+} from '../../../index.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -29,6 +34,32 @@ export function registerCapabilitiesAutomatedSuite(
     'standard',
     'training_services',
     'website_hosting',
+  ];
+
+  /** All ProviderEventType enum values — kept in sync with `models/event.ts`. */
+  const ALL_EVENT_TYPES: readonly ProviderEventType[] = [
+    'customer.created',
+    'customer.updated',
+    'customer.deleted',
+    'product.created',
+    'product.updated',
+    'price.created',
+    'price.updated',
+    'subscription.created',
+    'subscription.updated',
+    'subscription.canceled',
+    'subscription.trial_will_end',
+    'subscription.trial_ended',
+    'payment.created',
+    'payment.succeeded',
+    'payment.failed',
+    'payment.refunded',
+    'discount.created',
+    'discount.updated',
+    'discount.archived',
+    'checkout_session.completed',
+    'checkout_session.expired',
+    'billing_document.finalized',
   ];
 
   /** A representative slate of lowercase ISO-4217 currency codes. */
@@ -119,6 +150,20 @@ export function registerCapabilitiesAutomatedSuite(
           expect(value as string).toMatch(/^[a-z]{3}$/);
         }
       });
+
+      it('capabilities.webhookEventTypes is a non-empty Set-like collection', () => {
+        const ev = provider.capabilities.webhookEventTypes;
+        expect(isSetLike(ev)).toBe(true);
+        expect(ev.size).toBeGreaterThan(0);
+      });
+
+      it('every value in capabilities.webhookEventTypes is a known ProviderEventType', () => {
+        const valid = new Set<string>(ALL_EVENT_TYPES);
+        for (const value of provider.capabilities.webhookEventTypes) {
+          expect(typeof value).toBe('string');
+          expect(valid.has(value as string)).toBe(true);
+        }
+      });
     });
 
     // -------------------------------------------------------------------------
@@ -192,6 +237,71 @@ export function registerCapabilitiesAutomatedSuite(
         expect(e.code).toBe('not_supported');
         expect(e.feature).toBe('currency');
         expect(e.value).toBe(unsupported);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Not-supported boundary: webhooks.createEndpoint with an event type
+    // outside `capabilities.webhookEventTypes` throws
+    // ProviderNotSupportedError(422, 'not_supported').
+    // -------------------------------------------------------------------------
+    describe('not-supported: webhookEventType', () => {
+      it('throws ProviderNotSupportedError for an eventType outside provider.capabilities.webhookEventTypes', async () => {
+        const supported = provider.capabilities.webhookEventTypes;
+        const unsupported = ALL_EVENT_TYPES.find((t) => !supported.has(t));
+        if (unsupported === undefined) {
+          // The provider supports every normalized event type — nothing to
+          // exercise. Early return rather than skip, per brief.
+          return;
+        }
+        const err = await provider.webhooks
+          .createEndpoint({
+            url: `https://example.com/cap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            eventTypes: [unsupported],
+          })
+          .then(
+            () => null,
+            (e: unknown) => e,
+          );
+        expect(err).toBeInstanceOf(ProviderNotSupportedError);
+        const e = err as ProviderNotSupportedError;
+        expect(e.status).toBe(422);
+        expect(e.code).toBe('not_supported');
+        expect(e.feature).toBe('webhookEventType');
+        expect(e.value).toBe(unsupported);
+      });
+
+      it('updateEndpoint also rejects an unsupported eventType', async () => {
+        const supported = provider.capabilities.webhookEventTypes;
+        const unsupported = ALL_EVENT_TYPES.find((t) => !supported.has(t));
+        if (unsupported === undefined) return;
+        // Need a real endpoint to update. Pick any supported type to seed it.
+        const supportedSeed = ALL_EVENT_TYPES.find((t) => supported.has(t));
+        if (supportedSeed === undefined) return;
+        const created = await provider.webhooks.createEndpoint({
+          url: `https://example.com/cap-upd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          eventTypes: [supportedSeed],
+        });
+        try {
+          const err = await provider.webhooks
+            .updateEndpoint({ id: created.id, eventTypes: [unsupported] })
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(err).toBeInstanceOf(ProviderNotSupportedError);
+          const e = err as ProviderNotSupportedError;
+          expect(e.status).toBe(422);
+          expect(e.code).toBe('not_supported');
+          expect(e.feature).toBe('webhookEventType');
+          expect(e.value).toBe(unsupported);
+        } finally {
+          try {
+            await provider.webhooks.deleteEndpoint({ id: created.id });
+          } catch {
+            // Best-effort cleanup.
+          }
+        }
       });
     });
 

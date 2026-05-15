@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Billing Provider SDK — purchases",
+    "title": "Billing Provider SDK — payments",
     "version": "0.0.0",
     "description": "OpenAPI-style description of the normalized SDK methods in this domain. These are not real HTTP endpoints; the document exists so any OpenAPI viewer can render the request and response schemas."
   },
@@ -29,6 +29,32 @@
         ],
         "description": "A monetary amount in minor units plus ISO currency"
       },
+      "AppliedDiscount": {
+        "type": "object",
+        "properties": {
+          "discountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "amountDiscounted": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "discountId",
+          "code",
+          "amountDiscounted"
+        ],
+        "additionalProperties": false,
+        "description": "A single discount applied to a payment or checkout session. Use `discountId` to refetch the full ProviderDiscount via `discounts.get`."
+      },
       "Metadata": {
         "type": "object",
         "additionalProperties": {
@@ -36,7 +62,7 @@
         },
         "description": "Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers."
       },
-      "ProviderPurchase": {
+      "ProviderPayment": {
         "type": "object",
         "properties": {
           "id": {
@@ -62,6 +88,9 @@
           "amount": {
             "$ref": "#/components/schemas/Money"
           },
+          "subtotal": {
+            "$ref": "#/components/schemas/Money"
+          },
           "amountRefunded": {
             "allOf": [
               {
@@ -74,6 +103,12 @@
                 ]
               }
             ]
+          },
+          "appliedDiscounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedDiscount"
+            }
           },
           "priceId": {
             "type": [
@@ -107,21 +142,22 @@
           "status",
           "amount",
           "amountRefunded",
+          "appliedDiscounts",
           "priceId",
           "productId",
           "checkoutSessionId",
           "metadata",
           "createdAt"
         ],
-        "description": "A normalized one-time purchase / payment record."
+        "description": "A normalized money-movement record. One-time purchases, subscription renewal charges, and any other payment events land here."
       },
-      "PurchasesPage": {
+      "PaymentsPage": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProviderPurchase"
+              "$ref": "#/components/schemas/ProviderPayment"
             }
           },
           "nextCursor": {
@@ -152,7 +188,7 @@
         },
         "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
       },
-      "PurchasesListInput": {
+      "PaymentsListInput": {
         "allOf": [
           {
             "$ref": "#/components/schemas/PaginationInput"
@@ -179,7 +215,7 @@
         ],
         "description": "Optional cursor-based pagination. List methods return a stable-sorted array; pagination cursors are opaque strings."
       },
-      "PurchasesGetInput": {
+      "PaymentsGetInput": {
         "type": "object",
         "properties": {
           "id": {
@@ -195,18 +231,18 @@
     "parameters": {}
   },
   "paths": {
-    "/purchases/list": {
+    "/payments/list": {
       "post": {
-        "operationId": "purchases.list",
-        "summary": "purchases.list",
+        "operationId": "payments.list",
+        "summary": "payments.list",
         "tags": [
-          "purchases"
+          "payments"
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PurchasesListInput"
+                "$ref": "#/components/schemas/PaymentsListInput"
               }
             }
           }
@@ -217,7 +253,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PurchasesPage"
+                  "$ref": "#/components/schemas/PaymentsPage"
                 }
               }
             }
@@ -249,18 +285,18 @@
         }
       }
     },
-    "/purchases/get": {
+    "/payments/get": {
       "post": {
-        "operationId": "purchases.get",
-        "summary": "purchases.get",
+        "operationId": "payments.get",
+        "summary": "payments.get",
         "tags": [
-          "purchases"
+          "payments"
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PurchasesGetInput"
+                "$ref": "#/components/schemas/PaymentsGetInput"
               }
             }
           }
@@ -273,7 +309,7 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "#/components/schemas/ProviderPurchase"
+                      "$ref": "#/components/schemas/ProviderPayment"
                     },
                     {
                       "type": [

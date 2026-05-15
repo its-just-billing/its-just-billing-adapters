@@ -603,3 +603,98 @@ describe('webhooks.listEndpoints returns every endpoint', () => {
     expect(page.nextCursor).toBeNull();
   });
 });
+
+describe('trialEnd lifecycle (null once not trialing)', () => {
+  async function setupTrialing() {
+    const provider = createMockProvider();
+    const customer = await provider.customers.create({});
+    const product = await provider.products.create({ name: 'p', taxCategory: 'saas' });
+    const price = await provider.prices.create({
+      productId: product.id,
+      currency: 'usd',
+      kind: 'recurring',
+      unitAmount: 999,
+      interval: 'month',
+      intervalCount: 1,
+    });
+    const sub = provider.admin.createSubscription({
+      customerId: customer.id,
+      priceId: price.id,
+      trial: { count: 14, unit: 'day' },
+    });
+    return { provider, sub };
+  }
+
+  it('createSubscription({trial}) → trialing with a future trialEnd', async () => {
+    const { sub } = await setupTrialing();
+    expect(sub.status).toBe('trialing');
+    expect(sub.trialEnd).toBeInstanceOf(Date);
+    expect((sub.trialEnd as Date).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('createSubscription without trial → active with trialEnd null', async () => {
+    const provider = createMockProvider();
+    const customer = await provider.customers.create({});
+    const product = await provider.products.create({ name: 'p', taxCategory: 'saas' });
+    const price = await provider.prices.create({
+      productId: product.id,
+      currency: 'usd',
+      kind: 'recurring',
+      unitAmount: 999,
+      interval: 'month',
+      intervalCount: 1,
+    });
+    const sub = provider.admin.createSubscription({
+      customerId: customer.id,
+      priceId: price.id,
+    });
+    expect(sub.status).toBe('active');
+    expect(sub.trialEnd).toBeNull();
+  });
+
+  it('admin.endTrial → active, trialEnd null on the return value AND the emitted trial_ended event', async () => {
+    const { provider, sub } = await setupTrialing();
+    expect(sub.trialEnd).toBeInstanceOf(Date);
+
+    const ended = provider.admin.endTrial({ id: sub.id });
+    expect(ended.status).toBe('active');
+    // The P3 regression: an active subscription must not carry a (future)
+    // trialEnd. Under the cross-provider contract it is null once not trialing.
+    expect(ended.trialEnd).toBeNull();
+
+    // A subsequent read agrees (the internal store stays honest, not just the
+    // mutation return value).
+    const reread = await provider.subscriptions.get({ id: sub.id });
+    expect(reread?.status).toBe('active');
+    expect(reread?.trialEnd).toBeNull();
+
+    // The emitted subscription.trial_ended event payload must reflect the
+    // same null trialEnd — consumers of that event must not see an active
+    // sub whose trial end is still in the future.
+    const events = await provider.events.list({ types: ['subscription.trial_ended'] });
+    const trialEnded = events.data.find(
+      (e) => e.type === 'subscription.trial_ended' && e.resource.id === sub.id,
+    );
+    expect(trialEnded).toBeDefined();
+    const payload = trialEnded?.payload as { status?: unknown; trialEnd?: unknown } | undefined;
+    expect(payload?.status).toBe('active');
+    expect(payload?.trialEnd).toBeNull();
+  });
+
+  it('admin.endTrial rejects a non-trialing subscription', async () => {
+    const provider = createMockProvider();
+    const customer = await provider.customers.create({});
+    const product = await provider.products.create({ name: 'p', taxCategory: 'saas' });
+    const price = await provider.prices.create({
+      productId: product.id,
+      currency: 'usd',
+      kind: 'recurring',
+      unitAmount: 999,
+      interval: 'month',
+      intervalCount: 1,
+    });
+    const sub = provider.admin.createSubscription({ customerId: customer.id, priceId: price.id });
+    expect(sub.status).toBe('active');
+    expect(() => provider.admin.endTrial({ id: sub.id })).toThrow(ProviderConstraintError);
+  });
+});
