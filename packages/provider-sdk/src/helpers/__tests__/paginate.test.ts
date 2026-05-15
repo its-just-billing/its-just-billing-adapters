@@ -4,9 +4,7 @@ import { paginate } from '../paginate.js';
 
 describe('paginate', () => {
   it('yields items from a single page when nextCursor is null', async () => {
-    const fetch = vi.fn(
-      async (): Promise<Page<number>> => ({ data: [1, 2, 3], nextCursor: null }),
-    );
+    const fetch = vi.fn(async (): Promise<Page<number>> => ({ data: [1, 2, 3], nextCursor: null }));
     const out: number[] = [];
     for await (const item of paginate(fetch)) out.push(item);
     expect(out).toEqual([1, 2, 3]);

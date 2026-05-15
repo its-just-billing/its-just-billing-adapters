@@ -217,12 +217,15 @@ export function registerProductsFixtureSuite(
     );
 
     // -------------------------------------------------------------------------
-    // Scenario 4: description null path + revert. Works whether the fixture
-    // starts with a non-null or null description.
+    // Scenario 4: description swap + revert. Per the SDK contract, description
+    // is immutable-once-set (can be changed to a new non-empty string but
+    // not unset). This scenario covers the "change to a different non-empty
+    // value, then revert" round-trip; the "cannot unset" half is covered by
+    // the automated suite's validation tests.
     // -------------------------------------------------------------------------
-    lazySkipIf(() => !harness?.fixtures?.productId)('description null path + revert', async () => {
+    lazySkipIf(() => !harness?.fixtures?.productId)('description swap + revert', async () => {
       const id = requireFixture(harness.fixtures?.productId, 'productId');
-      let originalDescription: string | null = null;
+      let originalDescription = '';
       await withFixture(`product:${id}`, {
         healthCheck: async () => {
           const current = await provider.products.get({ id });
@@ -232,33 +235,19 @@ export function registerProductsFixtureSuite(
           if (current.active !== true) {
             throw new Error(`fixture product ${id} must start active: true`);
           }
+          if (current.description === null) {
+            throw new Error(
+              `fixture product ${id} must have a non-null description so the swap+revert can restore it; description is immutable-once-set`,
+            );
+          }
           originalDescription = current.description;
         },
         test: async () => {
-          if (originalDescription !== null) {
-            const cleared = await provider.products.update({ id, description: null });
-            await harness.assertConsistency?.product?.(cleared);
-            expect(cleared.description).toBeNull();
-
-            const restored = await provider.products.update({
-              id,
-              description: originalDescription,
-            });
-            await harness.assertConsistency?.product?.(restored);
-            expect(restored.description).toBe(originalDescription);
-          } else {
-            const fillerDescription = 'conformance-fixture description';
-            const set = await provider.products.update({
-              id,
-              description: fillerDescription,
-            });
-            await harness.assertConsistency?.product?.(set);
-            expect(set.description).toBe(fillerDescription);
-
-            const cleared = await provider.products.update({ id, description: null });
-            await harness.assertConsistency?.product?.(cleared);
-            expect(cleared.description).toBeNull();
-          }
+          const swapped = `${originalDescription} (swapped)`;
+          expect(swapped).not.toBe(originalDescription);
+          const updated = await provider.products.update({ id, description: swapped });
+          await harness.assertConsistency?.product?.(updated);
+          expect(updated.description).toBe(swapped);
         },
         revert: async () => {
           const final = await provider.products.get({ id });
@@ -350,7 +339,12 @@ export function registerProductsFixtureSuite(
       async () => {
         const id = requireFixture(harness.fixtures?.productId, 'productId');
         let originalName = '';
-        let originalDescription: string | null = null;
+        // Per the SDK contract, description is immutable-once-set: it can be
+        // changed but not unset. The revert step therefore requires the
+        // fixture product to start with a non-null description. Harnesses
+        // that seed a product without a description fail healthCheck rather
+        // than enter a state the contract forbids reverting to.
+        let originalDescription = '';
         await withFixture(`product:${id}`, {
           healthCheck: async () => {
             const current = await provider.products.get({ id });
@@ -360,15 +354,17 @@ export function registerProductsFixtureSuite(
             if (current.active !== true) {
               throw new Error(`fixture product ${id} must start active: true`);
             }
+            if (current.description === null) {
+              throw new Error(
+                `fixture product ${id} must have a non-null description so the combined-update revert can restore it; description is immutable-once-set per the SDK contract`,
+              );
+            }
             originalName = current.name;
             originalDescription = current.description;
           },
           test: async () => {
             const newName = `${originalName} (combined)`;
-            const newDescription =
-              originalDescription === null
-                ? 'conformance-fixture combined'
-                : `${originalDescription} (combined)`;
+            const newDescription = `${originalDescription} (combined)`;
             expect(newName).not.toBe(originalName);
             expect(newDescription).not.toBe(originalDescription);
 

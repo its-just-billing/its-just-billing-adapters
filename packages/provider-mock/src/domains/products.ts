@@ -102,7 +102,10 @@ export function createProductsDomain(
       existing.updatedAt = new Date();
       const out = normalize(existing);
       if (wasActive) {
-        state.emit('product.archived', { kind: 'product', id: existing.id }, out);
+        // `product.archived` collapsed into `product.updated` — consumers are
+        // expected to refetch on update events rather than trust payloads, so
+        // a dedicated archive-transition event added no information.
+        state.emit('product.updated', { kind: 'product', id: existing.id }, out);
       }
       return out;
     },

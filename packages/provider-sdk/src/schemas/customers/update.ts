@@ -1,6 +1,6 @@
-import { z } from '../../zod.js';
-import { ProviderCustomerSchema, type ProviderCustomer } from '../../models/customer.js';
+import { type ProviderCustomer, ProviderCustomerSchema } from '../../models/customer.js';
 import { MetadataSchema } from '../../models/metadata.js';
+import { z } from '../../zod.js';
 
 export const CustomersUpdateInputSchema = z
   .object({

@@ -194,17 +194,17 @@ export function registerProductsAutomatedSuite(
         expect(p.description).toBeNull();
       });
 
-      it('accepts empty-string description', async () => {
-        const name = uniqueName();
-        const p = await provider.products.create({
-          name,
-          taxCategory: 'saas',
-          description: '',
-        });
-        track(p.id);
-        expectIsProduct(p);
-        await harness.assertConsistency?.product?.(p);
-        expect(p.description).toBe('');
+      it('rejects empty-string description', async () => {
+        // Empty string is not a meaningful description and Stripe rejects it
+        // outright (description "cannot be unset"). The SDK contract treats
+        // description as omit-or-non-empty.
+        await expect(
+          provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'saas',
+            description: '',
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
       it('two creates with the same name produce distinct ids', async () => {
@@ -561,19 +561,24 @@ export function registerProductsAutomatedSuite(
         expect(u.updatedAt.getTime()).toBeGreaterThanOrEqual(original.updatedAt.getTime());
       });
 
-      it('update({id, description: null}) clears the description', async () => {
+      it('rejects update({id, description: null}) — description cannot be cleared', async () => {
+        // The SDK contract: once set, description cannot be unset. Pass a new
+        // non-empty string to change it, or omit the field to keep the current
+        // value. Empty string and null are both rejected at validation. This
+        // mirrors Stripe's "description cannot be unset" constraint.
         const p = await provider.products.create({
           name: uniqueName(),
           taxCategory: 'saas',
-          description: 'will be cleared',
+          description: 'cannot be unset',
         });
         track(p.id);
         await harness.assertConsistency?.product?.(p);
-        const u = await provider.products.update({ id: p.id, description: null });
-        expectIsProduct(u);
-        await harness.assertConsistency?.product?.(u);
-        expect(u.description).toBeNull();
-        expect(u.createdAt.getTime()).toBe(p.createdAt.getTime());
+        await expect(
+          provider.products.update({ id: p.id, description: null } as any),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
+        await expect(
+          provider.products.update({ id: p.id, description: '' } as any),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
       it('update silently strips `active` (use deactivate / activate instead)', async () => {
@@ -929,6 +934,17 @@ export function registerProductsAutomatedSuite(
     // -------------------------------------------------------------------------
     afterAll(async () => {
       for (const id of createdIds) {
+        // Try the harness's hard-delete hook first (if any). Adapters whose
+        // provider supports product deletion (e.g. Stripe via `products.del`
+        // when no prices are attached) drop the resource here so test
+        // residue doesn't accumulate. Fall through to the contract's
+        // soft-delete either way — if hard-delete succeeded the soft call
+        // 404s harmlessly; if it failed (or no hook) we at least archive.
+        try {
+          await harness?.cleanupResource?.('product', id);
+        } catch {
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
         try {
           await provider.products.deactivate({ id });
         } catch {

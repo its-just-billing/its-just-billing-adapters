@@ -1,6 +1,6 @@
+import { type Page, pageOf } from '../../models/page.js';
+import { type ProviderPrice, ProviderPriceSchema } from '../../models/price.js';
 import { z } from '../../zod.js';
-import { ProviderPriceSchema, type ProviderPrice } from '../../models/price.js';
-import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const PricesListInputSchema = PaginationInputSchema.extend({

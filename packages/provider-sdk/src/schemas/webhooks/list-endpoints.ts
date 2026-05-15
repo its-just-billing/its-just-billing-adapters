@@ -1,9 +1,9 @@
-import { z } from '../../zod.js';
+import { type Page, pageOf } from '../../models/page.js';
 import {
-  ProviderWebhookEndpointSchema,
   type ProviderWebhookEndpoint,
+  ProviderWebhookEndpointSchema,
 } from '../../models/webhook.js';
-import { pageOf, type Page } from '../../models/page.js';
+import { z } from '../../zod.js';
 
 export const WebhooksListEndpointsInputSchema = z
   .object({})

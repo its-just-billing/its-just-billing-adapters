@@ -1,6 +1,6 @@
+import { type ProviderDiscount, ProviderDiscountSchema } from '../../models/discount.js';
+import { type Page, pageOf } from '../../models/page.js';
 import { z } from '../../zod.js';
-import { ProviderDiscountSchema, type ProviderDiscount } from '../../models/discount.js';
-import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const DiscountsListInputSchema = PaginationInputSchema.extend({

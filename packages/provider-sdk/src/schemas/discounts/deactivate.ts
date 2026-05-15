@@ -1,5 +1,5 @@
+import { type ProviderDiscount, ProviderDiscountSchema } from '../../models/discount.js';
 import { z } from '../../zod.js';
-import { ProviderDiscountSchema, type ProviderDiscount } from '../../models/discount.js';
 
 export const DiscountsDeactivateInputSchema = z
   .object({ id: z.string().min(1) })

@@ -94,6 +94,20 @@ export interface ProviderConsistencyChecks {
  * presentation shape (see `BillingProvider<TCheckoutPresentation>`). Default
  * `unknown` keeps adapter-agnostic conformance suites honest.
  */
+/**
+ * Resource kinds the conformance suite tracks for end-of-suite cleanup. Used
+ * with {@link ProviderTestHarness.cleanupResource} to give adapters a chance
+ * to hard-delete what the SDK contract can only soft-delete.
+ */
+export type ProviderTrackedKind =
+  | 'product'
+  | 'price'
+  | 'customer'
+  | 'discount'
+  | 'subscription'
+  | 'checkoutSession'
+  | 'webhookEndpoint';
+
 export interface ProviderTestHarness<TCheckoutPresentation = unknown> {
   /** Human label used in test output, e.g. "mock", "stripe". */
   readonly label: string;
@@ -107,6 +121,29 @@ export interface ProviderTestHarness<TCheckoutPresentation = unknown> {
    * not truthy.
    */
   prompt?(message: string): Promise<string>;
+  /**
+   * Optional best-effort hard-delete for a resource created during a test.
+   * The conformance suites call this in their `afterAll` blocks before
+   * falling back to the contract's soft-delete (`deactivate` / `archive`).
+   *
+   * Why this exists: the SDK contract intentionally exposes only soft-delete
+   * for most resources because real callers want recoverable state. Tests,
+   * by contrast, want their residue gone — accumulating archived products
+   * and dormant coupons in a Stripe account adds up across hundreds of test
+   * runs. Adapters whose underlying provider supports a true delete (e.g.
+   * Stripe's `products.del`, `coupons.del`) implement this to drop those
+   * resources entirely; the SDK's normal lifecycle methods are unchanged.
+   *
+   * Implementations should resolve normally when delete succeeds, and may
+   * throw or no-op when the provider doesn't permit deletion (Stripe prices,
+   * for instance, can never be deleted — soft-delete is the floor). The
+   * conformance suite swallows errors and still falls through to the
+   * contract's soft-delete as a fallback.
+   *
+   * When this hook is absent the conformance suites use only the
+   * soft-delete path — the same behavior as before this hook existed.
+   */
+  cleanupResource?(kind: ProviderTrackedKind, id: string): Promise<void>;
   teardown?(): Promise<void>;
 }
 

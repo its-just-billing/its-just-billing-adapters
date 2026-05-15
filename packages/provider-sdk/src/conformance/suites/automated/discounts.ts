@@ -34,6 +34,22 @@ export function registerDiscountsAutomatedSuite(
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
   }
 
+  /**
+   * A future Date the test can use as a discount expiration. Computed at test
+   * time (not a hardcoded calendar year) so it stays within whatever
+   * future-window the live provider enforces — Stripe, for example, rejects
+   * `expires_at` more than five years in the future. Four years gives the
+   * test a comfortable margin while still being well past any test run.
+   *
+   * Floored to whole seconds: providers commonly store expirations in unix
+   * seconds (Stripe does) and the round-trip otherwise loses the sub-second
+   * component, breaking exact `getTime()` equality.
+   */
+  function futureExpiration(): Date {
+    const fourYearsMs = 4 * 365 * 24 * 60 * 60 * 1000;
+    return new Date(Math.floor((Date.now() + fourYearsMs) / 1000) * 1000);
+  }
+
   function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
@@ -234,7 +250,7 @@ export function registerDiscountsAutomatedSuite(
       });
 
       it('expiresAt Date round-trips', async () => {
-        const expiresAt = new Date('2099-01-01T00:00:00Z');
+        const expiresAt = futureExpiration();
         const d = await provider.discounts.create({
           benefit: percent10,
           duration: once,
@@ -425,6 +441,7 @@ export function registerDiscountsAutomatedSuite(
 
       it.each([
         ['-1', -1],
+        ['0', 0],
         ['fractional', 1.5],
         ['string', '500'],
         ['missing', undefined],
@@ -459,18 +476,15 @@ export function registerDiscountsAutomatedSuite(
         ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
-      it('accepts amount=0 currency=usd', async () => {
-        const d = await provider.discounts.create({
-          benefit: { kind: 'amount', amountOff: { amount: 0, currency: 'usd' } },
-          duration: once,
-        });
-        track(d.id);
-        expectIsDiscount(d);
-        await harness.assertConsistency?.discount?.(d);
-        expect(d.benefit).toEqual({
-          kind: 'amount',
-          amountOff: { amount: 0, currency: 'usd' },
-        });
+      it('rejects amount=0 (amountOff must be strictly positive)', async () => {
+        // A zero-value discount is a no-op; Stripe rejects `amount_off: 0` and
+        // the SDK contract mirrors that constraint. Use `>= 1` minor unit.
+        await expect(
+          provider.discounts.create({
+            benefit: { kind: 'amount', amountOff: { amount: 0, currency: 'usd' } },
+            duration: once,
+          }),
+        ).rejects.toBeInstanceOf(ProviderValidationError);
       });
 
       it('accepts currency=eur', async () => {
@@ -984,34 +998,29 @@ export function registerDiscountsAutomatedSuite(
         expect(u.active).toBe(true);
       });
 
-      it('update({id, expiresAt:Date}) sets expiration', async () => {
+      it('update silently strips `expiresAt` — expiration is immutable post-create', async () => {
+        // The SDK contract treats `expiresAt` as create-only. Both Stripe and
+        // Paddle make the underlying field create-only on the promotion code,
+        // and changing the expiration after issue would surprise customers
+        // holding redeemable codes. Zod strips the unknown key; the call
+        // succeeds and the resource's expiration is unchanged. (Pass-through
+        // is the same convention used for `active` on update.)
+        const originalExpiry = futureExpiration();
         const d = await provider.discounts.create({
           benefit: percent10,
           duration: once,
+          expiresAt: originalExpiry,
+        });
+        track(d.id);
+        await harness.assertConsistency?.discount?.(d);
+        const u = await provider.discounts.update({
+          id: d.id,
           expiresAt: null,
-        });
-        track(d.id);
-        await harness.assertConsistency?.discount?.(d);
-        const expiresAt = new Date('2099-01-01T00:00:00Z');
-        const u = await provider.discounts.update({ id: d.id, expiresAt });
+        } as any);
         expectIsDiscount(u);
         await harness.assertConsistency?.discount?.(u);
-        expect(u.expiresAt).toBeInstanceOf(Date);
-        expect((u.expiresAt as Date).getTime()).toBe(expiresAt.getTime());
-      });
-
-      it('update({id, expiresAt:null}) clears expiration', async () => {
-        const d = await provider.discounts.create({
-          benefit: percent10,
-          duration: once,
-          expiresAt: new Date('2099-01-01T00:00:00Z'),
-        });
-        track(d.id);
-        await harness.assertConsistency?.discount?.(d);
-        const u = await provider.discounts.update({ id: d.id, expiresAt: null });
-        expectIsDiscount(u);
-        await harness.assertConsistency?.discount?.(u);
-        expect(u.expiresAt).toBeNull();
+        expect(u.id).toBe(d.id);
+        expect((u.expiresAt as Date).getTime()).toBe(originalExpiry.getTime());
       });
 
       it('update({id, metadata}) REPLACES metadata (does not merge)', async () => {
@@ -1064,18 +1073,9 @@ export function registerDiscountsAutomatedSuite(
         );
       });
 
-      // ---- validation: expiresAt ----
-      it('rejects expiresAt string', async () => {
-        await expect(
-          provider.discounts.update({ id: 'disc_x', expiresAt: 'tomorrow' as any }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
-      });
-
-      it('rejects expiresAt Invalid Date', async () => {
-        await expect(
-          provider.discounts.update({ id: 'disc_x', expiresAt: new Date('bad') }),
-        ).rejects.toBeInstanceOf(ProviderValidationError);
-      });
+      // expiresAt is intentionally not in the update input schema — Zod
+      // strips it rather than rejecting. The "update silently strips" test
+      // earlier in this file covers the positive case.
 
       // ---- validation: metadata ----
       it('rejects metadata with non-string value', async () => {
@@ -1363,6 +1363,15 @@ export function registerDiscountsAutomatedSuite(
     // -------------------------------------------------------------------------
     afterAll(async () => {
       for (const id of createdIds) {
+        // Try the harness's hard-delete hook first. On Stripe this cascades
+        // through to coupon deletion (the discount's underlying resource)
+        // so the test account doesn't accumulate dormant coupons + promotion
+        // codes across runs.
+        try {
+          await harness?.cleanupResource?.('discount', id);
+        } catch {
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
         try {
           await provider.discounts.deactivate({ id });
         } catch {

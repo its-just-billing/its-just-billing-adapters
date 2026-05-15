@@ -8,21 +8,35 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "STRIPE_TEST_API_KEY",
+        "STRIPE_FIXTURE_CUSTOMER_ID",
+        "STRIPE_FIXTURE_PRODUCT_ID",
+        "STRIPE_FIXTURE_RECURRING_PRICE_ID",
+        "STRIPE_FIXTURE_ONE_TIME_PRICE_ID",
+        "STRIPE_FIXTURE_SUBSCRIPTION_ID",
+        "STRIPE_FIXTURE_DISCOUNT_ID",
+        "STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID",
+        "INTERACTIVE"
+      ]
     },
     "test:conformance:automated": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": ["STRIPE_TEST_API_KEY"]
     },
     "test:conformance:semi-manual": {
       "dependsOn": ["^build"],
       "outputs": [],
       "cache": false,
-      "persistent": false
+      "persistent": false,
+      "env": ["STRIPE_TEST_API_KEY", "INTERACTIVE"]
     },
     "test:conformance:self-setup": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": ["STRIPE_TEST_API_KEY"]
     },
     "docs:build": {
       "dependsOn": ["^build"],

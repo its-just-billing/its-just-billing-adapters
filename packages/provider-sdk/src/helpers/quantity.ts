@@ -1,11 +1,7 @@
 import { ProviderConstraintError } from '../errors/constraint.js';
 import { ProviderNormalizationError } from '../errors/normalization.js';
 import { RESERVED_METADATA_KEYS } from '../models/metadata.js';
-import {
-  isQuantityWithinConstraint,
-  type PriceKind,
-  type Quantity,
-} from '../models/quantity.js';
+import { type PriceKind, type Quantity, isQuantityWithinConstraint } from '../models/quantity.js';
 
 /**
  * Permissive quantity constraint applied when a price is read from a provider

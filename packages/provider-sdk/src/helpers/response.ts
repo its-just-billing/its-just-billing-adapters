@@ -1,4 +1,4 @@
-import { isProviderError, ProviderError } from '../errors/base.js';
+import { ProviderError, isProviderError } from '../errors/base.js';
 
 export type ProviderResult<T> =
   | { ok: true; status: number; data: T }

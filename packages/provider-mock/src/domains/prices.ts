@@ -125,7 +125,9 @@ export function createPricesDomain(state: MockState, capabilities: ProviderCapab
       existing.updatedAt = new Date();
       const out = normalize(existing);
       if (wasActive) {
-        state.emit('price.archived', { kind: 'price', id: existing.id }, out);
+        // `price.archived` collapsed into `price.updated` — see the matching
+        // note in products.ts deactivate.
+        state.emit('price.updated', { kind: 'price', id: existing.id }, out);
       }
       return out;
     },

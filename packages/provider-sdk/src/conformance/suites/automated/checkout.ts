@@ -228,6 +228,55 @@ export function registerCheckoutAutomatedSuite(
         expect(g.createdAt.getTime()).toBe(s.createdAt.getTime());
       });
 
+      it('getSession returns the full line-items list even when it exceeds the provider page size', async () => {
+        // Regression: adapters that read line items off an inline-expanded
+        // `session.line_items` field (Stripe) only see the first page (~10
+        // items). For a session whose cart exceeded that, getSession was
+        // silently truncating. The fix pages through the dedicated
+        // line-items list endpoint and reconstructs the complete set.
+        //
+        // Twelve distinct prices puts us comfortably past Stripe's 10-item
+        // inline default while staying cheap enough to keep this in the
+        // automated tier. Each price is unique so we can assert positional
+        // equality, not just count.
+        const ITEM_COUNT = 12;
+        const extraPrices = await Promise.all(
+          Array.from({ length: ITEM_COUNT - 1 }).map((_, idx) =>
+            provider.prices.create({
+              productId: fixtureProduct.id,
+              currency: 'usd',
+              kind: 'one_time',
+              // Spread amounts so positional assertion isn't ambiguous if a
+              // provider reorders by amount.
+              unitAmount: 100 + idx,
+            }),
+          ),
+        );
+        for (const p of extraPrices) createdPriceIds.add(p.id);
+
+        const lineItems = [
+          { priceId: fixturePrice.id, quantity: 1 },
+          ...extraPrices.map((p) => ({ priceId: p.id, quantity: 1 })),
+        ];
+        const s = await provider.checkout.createSession({
+          lineItems,
+          successUrl: 'https://example.com/success',
+        });
+        expectIsCheckoutSession(s);
+        expect(s.lineItems).toHaveLength(ITEM_COUNT);
+
+        const got = await provider.checkout.getSession({ id: s.id });
+        expect(got).not.toBeNull();
+        const g = got as ProviderCheckoutSession;
+        expect(g.lineItems).toHaveLength(ITEM_COUNT);
+        // Set equality (line item order across providers isn't part of the
+        // contract — Stripe preserves insertion order, but we don't want the
+        // regression test to break if a future provider doesn't).
+        expect(new Set(g.lineItems.map((li) => li.priceId))).toEqual(
+          new Set(lineItems.map((li) => li.priceId)),
+        );
+      });
+
       it('two creates with the same input yield distinct sessions', async () => {
         const input = {
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
@@ -538,7 +587,13 @@ export function registerCheckoutAutomatedSuite(
     // a real test failure.
     // -------------------------------------------------------------------------
     afterAll(async () => {
+      // Prices first (deactivation must precede product hard-delete, since
+      // Stripe refuses to delete a product that has any prices — including
+      // archived ones).
       for (const id of createdPriceIds) {
+        try {
+          await harness?.cleanupResource?.('price', id);
+        } catch {}
         try {
           await provider.prices.deactivate({ id });
         } catch {
@@ -547,12 +602,18 @@ export function registerCheckoutAutomatedSuite(
       }
       for (const id of createdProductIds) {
         try {
+          await harness?.cleanupResource?.('product', id);
+        } catch {}
+        try {
           await provider.products.deactivate({ id });
         } catch {
           // Ignore cleanup failures.
         }
       }
       for (const id of createdCustomerIds) {
+        try {
+          await harness?.cleanupResource?.('customer', id);
+        } catch {}
         try {
           await provider.customers.archive({ id });
         } catch {

@@ -6,7 +6,8 @@ export interface ValidationIssue {
   code?: string;
 }
 
-export interface ProviderValidationErrorOptions extends Omit<ProviderErrorOptions, 'status' | 'code'> {
+export interface ProviderValidationErrorOptions
+  extends Omit<ProviderErrorOptions, 'status' | 'code'> {
   issues: ValidationIssue[];
 }
 

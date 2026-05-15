@@ -2,16 +2,28 @@ import { z } from '../zod.js';
 import { MetadataSchema } from './metadata.js';
 import { MoneySchema } from './money.js';
 
+// A zero-value `amountOff` would be a no-op discount; Stripe rejects it
+// outright (`amount_off >= 1`), and there is no useful semantic for "discount
+// of $0". The SDK contract mirrors that: amount discounts must be strictly
+// positive. Percent discounts already required `> 0`.
+const DiscountAmountBenefit = z.object({
+  kind: z.literal('amount'),
+  amountOff: MoneySchema.extend({
+    amount: z
+      .number()
+      .int()
+      .positive()
+      .openapi({ description: 'Amount in minor units; must be at least 1', example: 1999 }),
+  }),
+});
+
 export const DiscountBenefitSchema = z
   .discriminatedUnion('kind', [
     z.object({
       kind: z.literal('percent'),
       percentOff: z.number().positive().max(100),
     }),
-    z.object({
-      kind: z.literal('amount'),
-      amountOff: MoneySchema,
-    }),
+    DiscountAmountBenefit,
   ])
   .openapi('DiscountBenefit');
 export type DiscountBenefit = z.infer<typeof DiscountBenefitSchema>;

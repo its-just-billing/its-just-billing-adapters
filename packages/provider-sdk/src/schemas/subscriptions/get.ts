@@ -1,8 +1,8 @@
-import { z } from '../../zod.js';
 import {
-  ProviderSubscriptionSchema,
   type ProviderSubscription,
+  ProviderSubscriptionSchema,
 } from '../../models/subscription.js';
+import { z } from '../../zod.js';
 
 export const SubscriptionsGetInputSchema = z
   .object({ id: z.string().min(1) })

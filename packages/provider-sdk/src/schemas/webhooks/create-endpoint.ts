@@ -1,9 +1,9 @@
-import { z } from '../../zod.js';
 import { ProviderEventTypeSchema } from '../../models/event.js';
 import {
-  ProviderWebhookEndpointSchema,
   type ProviderWebhookEndpoint,
+  ProviderWebhookEndpointSchema,
 } from '../../models/webhook.js';
+import { z } from '../../zod.js';
 
 export const WebhooksCreateEndpointInputSchema = z
   .object({

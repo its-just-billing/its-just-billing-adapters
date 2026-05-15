@@ -12,16 +12,20 @@ export const EventResourceKindSchema = z.enum([
 ]);
 export type EventResourceKind = z.infer<typeof EventResourceKindSchema>;
 
+// `product.archived` and `price.archived` were intentionally collapsed into
+// the corresponding `*.updated` events: the recommended consumer pattern is
+// to treat events as a re-sync signal (i.e. "refetch this resource") rather
+// than as a payload to apply directly, so the active=true→false transition
+// adds no information beyond "the resource changed; go look at it". Adapters
+// emit `product.updated` / `price.updated` on deactivate.
 export const ProviderEventTypeSchema = z.enum([
   'customer.created',
   'customer.updated',
   'customer.deleted',
   'product.created',
   'product.updated',
-  'product.archived',
   'price.created',
   'price.updated',
-  'price.archived',
   'subscription.created',
   'subscription.updated',
   'subscription.canceled',

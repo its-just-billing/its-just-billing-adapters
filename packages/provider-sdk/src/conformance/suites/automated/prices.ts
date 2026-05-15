@@ -786,6 +786,27 @@ export function registerPricesAutomatedSuite(
         expect((got as ProviderPrice).quantity).toEqual({ min: 2, max: 5 });
       });
 
+      it('update from quantity {min,max} to {min only} drops the stale max', async () => {
+        // Regression: adapters that stash quantity in provider-merge-semantics
+        // metadata (Stripe) must emit a delete for the prior `max` key when
+        // the new quantity omits it. Without that, the stale max persists on
+        // the next read and keeps enforcing the old upper bound.
+        const a = await provider.prices.create({
+          productId: fixtureProduct.id,
+          currency: 'usd',
+          kind: 'one_time',
+          unitAmount: 100,
+          quantity: { min: 2, max: 5 },
+        });
+        trackPrice(a.id);
+        const u = await provider.prices.update({ id: a.id, quantity: { min: 1 } });
+        expectIsPrice(u);
+        expect(u.quantity).toEqual({ min: 1 });
+        const got = await provider.prices.get({ id: a.id });
+        expect(got).not.toBeNull();
+        expect((got as ProviderPrice).quantity).toEqual({ min: 1 });
+      });
+
       // ---- validation: id ----
       it.each([
         ['missing', {}],
@@ -1161,7 +1182,14 @@ export function registerPricesAutomatedSuite(
     // Best-effort cleanup
     // -------------------------------------------------------------------------
     afterAll(async () => {
+      // Order matters: prices first, then products. Stripe rejects product
+      // deletion when any prices (active or archived) remain attached, so
+      // archived prices block hard-delete. The hook attempts hard-delete
+      // where supported; the subsequent soft-delete is a no-op fallback.
       for (const id of createdPriceIds) {
+        try {
+          await harness?.cleanupResource?.('price', id);
+        } catch {}
         try {
           await provider.prices.deactivate({ id });
         } catch {
@@ -1169,6 +1197,9 @@ export function registerPricesAutomatedSuite(
         }
       }
       for (const id of createdProductIds) {
+        try {
+          await harness?.cleanupResource?.('product', id);
+        } catch {}
         try {
           await provider.products.deactivate({ id });
         } catch {

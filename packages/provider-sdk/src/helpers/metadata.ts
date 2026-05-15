@@ -1,5 +1,5 @@
 import { MetadataCollisionError } from '../errors/metadata-collision.js';
-import { findReservedKeys, type Metadata } from '../models/metadata.js';
+import { type Metadata, findReservedKeys } from '../models/metadata.js';
 
 /**
  * Throws MetadataCollisionError (422) if caller metadata contains any reserved

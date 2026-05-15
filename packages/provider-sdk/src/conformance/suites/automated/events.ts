@@ -32,10 +32,8 @@ export function registerEventsAutomatedSuite(
     'customer.deleted',
     'product.created',
     'product.updated',
-    'product.archived',
     'price.created',
     'price.updated',
-    'price.archived',
     'subscription.created',
     'subscription.updated',
     'subscription.canceled',
@@ -145,6 +143,24 @@ export function registerEventsAutomatedSuite(
         for (const e of out.data) {
           expectIsEvent(e);
           expect(e.type).toBe('customer.created');
+        }
+      });
+
+      it('filter must not silently widen to all events when no requested type has a provider counterpart', async () => {
+        // Regression: adapters that translate the SDK type filter into a
+        // provider-native one (e.g. Stripe's `types: [...]`) must never widen
+        // "filter to these types" into "no filter at all". `purchase.created`
+        // is a normalized type that has no Stripe source event today — the
+        // translated provider filter is therefore empty. A naive adapter
+        // would then omit the `types` parameter and call the provider with
+        // no filter, returning *every* event in the account. The contract is
+        // that requesting a filter is binding: either the provider returns
+        // only matching events, or it returns nothing.
+        const out = await provider.events.list({ types: ['purchase.created'] });
+        expectIsPage<ProviderEvent>(out);
+        for (const e of out.data) {
+          expectIsEvent(e);
+          expect(e.type).toBe('purchase.created');
         }
       });
 

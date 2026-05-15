@@ -1,11 +1,11 @@
-import { z } from '../../zod.js';
 import {
   DiscountBenefitSchema,
   DiscountDurationSchema,
-  ProviderDiscountSchema,
   type ProviderDiscount,
+  ProviderDiscountSchema,
 } from '../../models/discount.js';
 import { MetadataSchema } from '../../models/metadata.js';
+import { z } from '../../zod.js';
 
 export const DiscountsCreateInputSchema = z
   .object({

@@ -1,5 +1,5 @@
+import { type ProviderProduct, ProviderProductSchema } from '../../models/product.js';
 import { z } from '../../zod.js';
-import { ProviderProductSchema, type ProviderProduct } from '../../models/product.js';
 
 export const ProductsGetInputSchema = z
   .object({ id: z.string().min(1) })

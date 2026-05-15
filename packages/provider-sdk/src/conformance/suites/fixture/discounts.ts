@@ -20,6 +20,20 @@ import { lazySkipIf, requireFixture } from '../../skip-if.js';
  * Tests gate via `lazySkipIf(() => !harness?.fixtures?.discountId)`; harnesses that
  * do not supply a discount fixture simply skip every scenario.
  */
+/**
+ * A future Date the test can use as a discount expiration. Computed at test
+ * time so it stays within whatever future-window the live provider enforces
+ * — Stripe rejects `expires_at` more than five years out. Four years is a
+ * comfortable margin while still being well past any test run.
+ *
+ * Floored to whole seconds so providers that store expirations in unix
+ * seconds (Stripe) round-trip the value with exact `getTime()` equality.
+ */
+function futureExpiration(): Date {
+  const fourYearsMs = 4 * 365 * 24 * 60 * 60 * 1000;
+  return new Date(Math.floor((Date.now() + fourYearsMs) / 1000) * 1000);
+}
+
 export function registerDiscountsFixtureSuite(
   label: string,
   factory: () => ProviderTestHarness | Promise<ProviderTestHarness>,
@@ -91,13 +105,17 @@ export function registerDiscountsFixtureSuite(
     );
 
     // -------------------------------------------------------------------------
-    // Scenario 2: update expiresAt null -> future Date + revert
+    // Scenario 2: expiresAt is immutable — pass-through-strip is the contract
     // -------------------------------------------------------------------------
+    //
+    // `expiresAt` is create-only across providers; calling `update` with the
+    // field set must leave the discount's actual expiration unchanged. The
+    // automated suite covers the "Zod strips it" semantic; this fixture-level
+    // scenario verifies the live-provider behavior matches.
     lazySkipIf(() => !harness?.fixtures?.discountId)(
-      'update({expiresAt: Date}) sets expiration and update({expiresAt: null}) clears it',
+      'update silently leaves expiresAt unchanged (immutable post-create)',
       async () => {
         const id = requireFixture(harness.fixtures?.discountId, 'discountId');
-        let originalMetadata: Metadata = {};
         let originalExpiresAt: Date | null = null;
 
         await withFixture(`discount:${id}`, {
@@ -109,43 +127,29 @@ export function registerDiscountsFixtureSuite(
             if (original.active !== true) {
               throw new Error(`discount ${id} has active=${original.active}; expected true`);
             }
-            if (original.expiresAt !== null) {
-              throw new Error(
-                `discount ${id} has expiresAt=${String(original.expiresAt)}; expected null`,
-              );
-            }
-            originalMetadata = original.metadata;
             originalExpiresAt = original.expiresAt;
           },
           test: async () => {
-            const future = new Date('2099-01-01T00:00:00Z');
+            // Cast through `any` to bypass the input type (which doesn't
+            // include `expiresAt`). The runtime should strip it.
             const updated = await provider.discounts.update({
               id,
-              expiresAt: future,
-            });
+              expiresAt: futureExpiration(),
+            } as any);
             await harness.assertConsistency?.discount?.(updated);
-
             expect(updated.id).toBe(id);
-            expect(updated.expiresAt).toBeInstanceOf(Date);
-            expect((updated.expiresAt as Date).getTime()).toBe(future.getTime());
-            expect(updated.active).toBe(true);
-            expect(updated.metadata).toEqual(originalMetadata);
-          },
-          revert: async () => {
-            // IMPORTANT: pass null explicitly to clear the expiration; omitting
-            // the field would leave the prior write in place.
-            const reverted = await provider.discounts.update({
-              id,
-              expiresAt: null,
-            });
-            await harness.assertConsistency?.discount?.(reverted);
-
-            if (reverted.expiresAt !== null) {
+            // Expiration unchanged from the pre-update state.
+            const a = originalExpiresAt;
+            const b = updated.expiresAt;
+            const same = a === null ? b === null : b !== null && a.getTime() === b.getTime();
+            if (!same) {
               throw new Error(
-                `discount ${id} expiresAt=${String(reverted.expiresAt)} after revert; expected null`,
+                `discount ${id} expiresAt changed: before=${String(a)} after=${String(b)}`,
               );
             }
-            expect(reverted.expiresAt).toBe(originalExpiresAt);
+          },
+          revert: async () => {
+            // No-op: the test didn't mutate the resource.
           },
         });
       },

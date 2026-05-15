@@ -13,12 +13,10 @@ export const RESERVED_METADATA_KEYS = {
   TAX_CATEGORY_RAW: '__provider_tax_category_raw',
 } as const;
 
-export const MetadataSchema = z
-  .record(z.string(), z.string())
-  .openapi('Metadata', {
-    description:
-      'Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers.',
-  });
+export const MetadataSchema = z.record(z.string(), z.string()).openapi('Metadata', {
+  description:
+    'Flat string-to-string record. Keys starting with `__provider_` are reserved for adapter-managed use and must not be supplied by callers.',
+});
 
 export type Metadata = z.infer<typeof MetadataSchema>;
 

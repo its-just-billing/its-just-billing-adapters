@@ -96,7 +96,8 @@ export function createDiscountsDomain(state: MockState): Discounts {
       if (!existing) {
         throw new ProviderNotFoundError({ message: `Discount ${parsed.id} not found` });
       }
-      if (parsed.expiresAt !== undefined) existing.expiresAt = parsed.expiresAt;
+      // `expiresAt` is intentionally not in the update schema — expiration is
+      // immutable post-create. Zod strips any caller-provided value.
       if (parsed.metadata !== undefined) existing.metadata = { ...parsed.metadata };
       const out = normalize(existing);
       state.emit('discount.updated', { kind: 'discount', id: existing.id }, out);

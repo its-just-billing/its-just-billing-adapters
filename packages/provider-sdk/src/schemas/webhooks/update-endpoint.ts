@@ -1,9 +1,9 @@
-import { z } from '../../zod.js';
 import { ProviderEventTypeSchema } from '../../models/event.js';
 import {
-  ProviderWebhookEndpointSchema,
   type ProviderWebhookEndpoint,
+  ProviderWebhookEndpointSchema,
 } from '../../models/webhook.js';
+import { z } from '../../zod.js';
 
 export const WebhooksUpdateEndpointInputSchema = z
   .object({
@@ -14,7 +14,7 @@ export const WebhooksUpdateEndpointInputSchema = z
   })
   .openapi('WebhooksUpdateEndpointInput', {
     description:
-      'Update mutable fields on a webhook endpoint. Unlike products / prices / discounts, webhook `active` is a real send/don\'t-send toggle (not a soft-delete flag), so it is mutable here. `activate` / `deactivate` are also exposed as standalone methods for ergonomics.',
+      "Update mutable fields on a webhook endpoint. Unlike products / prices / discounts, webhook `active` is a real send/don't-send toggle (not a soft-delete flag), so it is mutable here. `activate` / `deactivate` are also exposed as standalone methods for ergonomics.",
   });
 
 export const WebhooksUpdateEndpointOutputSchema = ProviderWebhookEndpointSchema;

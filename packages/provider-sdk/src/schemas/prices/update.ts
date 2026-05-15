@@ -1,7 +1,7 @@
-import { z } from '../../zod.js';
-import { ProviderPriceSchema, type ProviderPrice } from '../../models/price.js';
 import { MetadataSchema } from '../../models/metadata.js';
+import { type ProviderPrice, ProviderPriceSchema } from '../../models/price.js';
 import { QuantitySchema } from '../../models/quantity.js';
+import { z } from '../../zod.js';
 
 export const PricesUpdateInputSchema = z
   .object({

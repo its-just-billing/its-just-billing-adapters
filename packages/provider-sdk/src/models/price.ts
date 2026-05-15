@@ -1,6 +1,6 @@
 import { z } from '../zod.js';
-import { CurrencySchema } from './money.js';
 import { MetadataSchema } from './metadata.js';
+import { CurrencySchema } from './money.js';
 import { QuantitySchema } from './quantity.js';
 
 export const RecurringIntervalSchema = z.enum(['day', 'week', 'month', 'year']);

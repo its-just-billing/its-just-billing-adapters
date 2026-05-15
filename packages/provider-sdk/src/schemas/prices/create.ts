@@ -1,12 +1,12 @@
-import { z } from '../../zod.js';
+import { MetadataSchema } from '../../models/metadata.js';
+import { CurrencySchema } from '../../models/money.js';
 import {
+  type ProviderPrice,
   ProviderPriceSchema,
   RecurringIntervalSchema,
-  type ProviderPrice,
 } from '../../models/price.js';
-import { CurrencySchema } from '../../models/money.js';
-import { MetadataSchema } from '../../models/metadata.js';
 import { QuantitySchema } from '../../models/quantity.js';
+import { z } from '../../zod.js';
 
 const OneTimeCreate = z.object({
   kind: z.literal('one_time'),

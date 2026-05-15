@@ -1,6 +1,6 @@
+import { type Page, pageOf } from '../../models/page.js';
+import { type ProviderProduct, ProviderProductSchema } from '../../models/product.js';
 import { z } from '../../zod.js';
-import { ProviderProductSchema, type ProviderProduct } from '../../models/product.js';
-import { pageOf, type Page } from '../../models/page.js';
 import { PaginationInputSchema } from '../pagination.js';
 
 export const ProductsListInputSchema = PaginationInputSchema.extend({

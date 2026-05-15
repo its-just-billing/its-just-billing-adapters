@@ -28,9 +28,9 @@ describe('encode/decode quantity', () => {
   });
 
   it('throws normalization error on garbage metadata', () => {
-    expect(() => decodeQuantityFromMetadata({ __provider_quantity_min: 'abc' }, 'one_time')).toThrow(
-      ProviderNormalizationError,
-    );
+    expect(() =>
+      decodeQuantityFromMetadata({ __provider_quantity_min: 'abc' }, 'one_time'),
+    ).toThrow(ProviderNormalizationError);
     expect(() =>
       decodeQuantityFromMetadata(
         { __provider_quantity_min: '5', __provider_quantity_max: '2' },

@@ -1,6 +1,6 @@
 import { z } from '../zod.js';
-import { MoneySchema } from './money.js';
 import { MetadataSchema } from './metadata.js';
+import { MoneySchema } from './money.js';
 
 export const BillingDocumentKindSchema = z.enum(['invoice', 'receipt', 'credit_note']);
 export type BillingDocumentKind = z.infer<typeof BillingDocumentKindSchema>;

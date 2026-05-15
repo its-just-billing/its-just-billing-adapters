@@ -199,7 +199,12 @@ export function registerCapabilitiesAutomatedSuite(
     // Best-effort cleanup.
     // -------------------------------------------------------------------------
     afterAll(async () => {
+      // Prices first so products can be hard-deleted (Stripe rejects product
+      // deletion when prices are attached).
       for (const id of createdPriceIds) {
+        try {
+          await harness?.cleanupResource?.('price', id);
+        } catch {}
         try {
           await provider.prices.deactivate({ id });
         } catch {
@@ -207,6 +212,9 @@ export function registerCapabilitiesAutomatedSuite(
         }
       }
       for (const id of createdProductIds) {
+        try {
+          await harness?.cleanupResource?.('product', id);
+        } catch {}
         try {
           await provider.products.deactivate({ id });
         } catch {

@@ -1,6 +1,7 @@
 import { ProviderError, type ProviderErrorOptions } from './base.js';
 
-export interface ProviderRateLimitErrorOptions extends Omit<ProviderErrorOptions, 'status' | 'code'> {
+export interface ProviderRateLimitErrorOptions
+  extends Omit<ProviderErrorOptions, 'status' | 'code'> {
   retryAfterSeconds?: number;
 }
 

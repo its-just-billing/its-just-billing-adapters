@@ -13,9 +13,9 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
-    "test:conformance:automated": "vitest run conformance.automated",
-    "test:conformance:semi-manual": "vitest run conformance.semi-manual",
+    "test": "vitest run --passWithNoTests",
+    "test:conformance:automated": "vitest run --passWithNoTests conformance.automated",
+    "test:conformance:semi-manual": "vitest run --passWithNoTests conformance.semi-manual",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

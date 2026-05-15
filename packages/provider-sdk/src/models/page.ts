@@ -17,13 +17,10 @@ export function pageOf<T extends z.ZodTypeAny>(
 ): z.ZodObject<{ data: z.ZodArray<T>; nextCursor: z.ZodNullable<z.ZodString> }> {
   const schema = z.object({
     data: z.array(itemSchema),
-    nextCursor: z
-      .string()
-      .nullable()
-      .openapi({
-        description:
-          'Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results.',
-      }),
+    nextCursor: z.string().nullable().openapi({
+      description:
+        'Opaque cursor to pass back as `cursor` on the next list call. `null` when there are no more results.',
+    }),
   });
   return name ? schema.openapi(name) : schema;
 }

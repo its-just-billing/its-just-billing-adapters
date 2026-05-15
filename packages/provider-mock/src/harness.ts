@@ -53,6 +53,10 @@ async function seedAllFixtures(
   const product = await provider.products.create({
     name: 'fixture-product',
     taxCategory: 'saas',
+    // Seed a non-null description so the combined name+description fixture
+    // scenario can round-trip. The contract says description is
+    // immutable-once-set, so the revert step requires it to start non-null.
+    description: 'conformance-fixture seed description',
   });
   // Two recurring prices: `recurringPrice` is the fixture-exposed swap target;
   // `subscriptionPrice` is what the seeded subscription actually rides on. The

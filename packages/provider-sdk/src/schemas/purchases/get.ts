@@ -1,5 +1,5 @@
+import { type ProviderPurchase, ProviderPurchaseSchema } from '../../models/purchase.js';
 import { z } from '../../zod.js';
-import { ProviderPurchaseSchema, type ProviderPurchase } from '../../models/purchase.js';
 
 export const PurchasesGetInputSchema = z
   .object({ id: z.string().min(1) })

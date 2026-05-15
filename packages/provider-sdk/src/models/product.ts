@@ -19,7 +19,6 @@ export const ProviderProductSchema = z
       'Normalized product record. Prices are NOT embedded; query them through the `prices` domain. `taxCategory` is `TaxCategory` for SDK-managed products, `"other"` for dashboard-created products whose provider-native code does not map to the normalized enum, or `null` when no tax category is set. `raw` is the provider-native product object exposed via the adapter`s TRaw generic.',
   });
 
-export type ProviderProduct<TRaw = unknown> = Omit<
-  z.infer<typeof ProviderProductSchema>,
-  'raw'
-> & { raw?: TRaw };
+export type ProviderProduct<TRaw = unknown> = Omit<z.infer<typeof ProviderProductSchema>, 'raw'> & {
+  raw?: TRaw;
+};
