@@ -982,28 +982,9 @@ Both are 422 but they're different semantics. Pick the right one.
 
 In priority order:
 
-1. **Mock provider** (`packages/provider-mock`):
-   - [ ] `src/state.ts` — in-memory Maps for each resource type.
-   - [ ] `src/ids.ts` — deterministic ID generator (`cus_mock_xxx`, etc.).
-   - [ ] `src/presentation.ts` — `MockCheckoutPresentation`.
-   - [ ] `src/capabilities.ts` — all 9 tax categories, ~30 common currencies.
-   - [ ] `src/error-mapping.ts` — mock-specific (in-memory, mostly just throws SDK errors directly).
-   - [ ] `src/domains/*.ts` — each domain implementation.
-   - [ ] `src/index.ts` — `createMockProvider()` + `MockProvider` type.
-   - [ ] `src/harness.ts` — `createMockHarness()`, full `setup.*` (mock can self-create anything).
-   - [ ] `src/__tests__/conformance.spec.ts` — register automated + self-setup + fixture suites.
-   - [ ] Verify all four suites pass.
+1. **Mock provider** (`packages/provider-mock`) — ✅ **DONE.** Reference implementation. Every conformance suite (automated, self-setup, fixture) runs green against it. Read `packages/provider-mock/src/` end-to-end before starting Stripe — every pattern you'll need is already there.
 
-2. **Stripe provider** (`packages/provider-stripe`):
-   - [ ] Same skeleton as mock.
-   - [ ] Provider-native error mapping for `Stripe.errors.*`.
-   - [ ] Tax category lookup tables.
-   - [ ] Capabilities sets (all 9 categories + Stripe's currency list).
-   - [ ] Implement domains using `stripe-node` SDK.
-   - [ ] `harness.setup.createSubscription` via Stripe API.
-   - [ ] `harness.assertConsistency.*` via direct `stripe.*.retrieve(id)` calls.
-   - [ ] Conformance spec wiring with env-var fixtures.
-   - [ ] Document required env vars in README or harness JSDoc.
+2. **Stripe provider** (`packages/provider-stripe`) — next up. See the [Stripe playbook](#stripe-playbook) below.
 
 3. **Paddle provider** (`packages/provider-paddle`):
    - [ ] Same skeleton.
@@ -1014,25 +995,157 @@ In priority order:
 
 4. **Tighten conformance** — iterate until all three adapters produce identical normalized shapes (modulo provider ID formats). Surface any contract ambiguities and update the spec.
 
-### Starter checklist for the mock adapter
+---
+
+## Stripe playbook
+
+Start here when picking up the Stripe adapter. The mock implementation in `packages/provider-mock/` is the reference: same package layout, same five-step recipe per method, same conformance wiring. The differences are real HTTP, real error shapes, real metadata limits, and the Stripe-specific managed-state tricks (quantity in metadata, tax-code translation).
+
+### Read first
+
+- **`packages/provider-mock/src/`** — every domain implementation is a working example you can mirror almost line-for-line. Steal the structure, swap in Stripe calls.
+- **`packages/provider-mock/src/__tests__/native.test.ts`** — the validation paths you'll need to replicate (archived customer in checkout, inactive price in change, mixed-currency rejection, quantity-bound enforcement, admin quantity validation).
+- **`docs/openapi/*.json`** — the source of truth for input/output shapes per method.
+
+### Getting started
 
 ```bash
-# Get the SDK building locally
-pnpm -w turbo run build
-pnpm --filter @its-just-billing/provider-sdk typecheck
+pnpm -w turbo run build                              # Build SDK first; adapter resolves against dist/
+pnpm --filter @its-just-billing/provider-stripe typecheck
 
-# Open the package
-cd packages/provider-mock
+cd packages/provider-stripe
 
-# Build the skeleton (use the playbook §1)
-# Implement domains one at a time (customers first — simplest)
-# Wire conformance: src/__tests__/conformance.spec.ts
-
-# Run the suite
-pnpm test
+# Skeleton already exists. Fill in:
+#  src/index.ts             — createStripeProvider, StripeProvider type
+#  src/client.ts            — Stripe SDK wrapper (apiKey, apiVersion)
+#  src/capabilities.ts      — taxCategories, currencies sets
+#  src/tax-codes.ts         — TaxCategory ⇄ txcd_* lookup
+#  src/error-mapping.ts     — mapStripeError(err, methodLabel)
+#  src/presentation.ts      — StripeCheckoutPresentation union
+#  src/normalize/*.ts       — Stripe.X → ProviderX functions
+#  src/domains/*.ts         — one per domain
+#  src/harness.ts           — createStripeHarness with assertConsistency
+#  src/__tests__/conformance.automated.spec.ts
+#  src/__tests__/conformance.self-setup.spec.ts
+#  src/__tests__/conformance.fixture.spec.ts (gated on env-var fixtures)
 ```
 
-The mock's success criterion: **every test in the conformance suite either passes or skips cleanly** when run against the mock harness with all four suites enabled. That proves the conformance suite is correctly wired and the contract is implementable.
+Domain implementation order that matches mock's complexity progression: customers → products → prices → discounts → checkout → purchases → subscriptions → events → webhooks.
+
+### Stripe-specific things the mock doesn't model
+
+These are the parts of the playbook (§§5–14) that the mock didn't need to exercise but Stripe does:
+
+- **Quantity in metadata** — Stripe has no native price-level quantity bounds. Use `encodeQuantityToMetadata` / `decodeQuantityFromMetadata`. `defaultQuantityFor(kind)` on create when caller omits. `UNMANAGED_QUANTITY_DEFAULT` ({min:1, max:999_999}) is the read-side fallback for prices created outside the SDK — don't pre-reject quantities Stripe would accept.
+- **Tax-code translation** — `TAX_CATEGORY_TO_STRIPE` and a reverse map for normalize. Verify the `txcd_*` codes against the live Stripe Tax Codes API; the placeholder codes in playbook §7 are illustrative. Unmapped codes on read surface as `'other'`, with the raw code stashed in `__provider_tax_category_raw` metadata. See `RESERVED_METADATA_KEYS.TAX_CATEGORY_RAW` in the SDK.
+- **Pagination translation** — Stripe uses `starting_after` + `has_more`. Translate to/from the SDK's opaque cursor; cursor format is the adapter's concern (return the last item's id when `has_more`, otherwise `null`).
+- **`subscription_schedule`** — if you read a Stripe subscription whose schedule wasn't authored by the SDK (e.g. dashboard-created), throw `ProviderUnmanagedStateError` rather than try to normalize it.
+- **Real HTTP errors** — `error-mapping.ts` translates `Stripe.errors.StripeError` subclasses into the normalized hierarchy by `statusCode`. Pattern in playbook §10.
+- **Real assertConsistency** — every harness verifier does a fresh `stripe.*.retrieve(id)` and compares to the normalized output. The mock skips this because in-memory state IS the source of truth; Stripe's existing state may have drifted between the adapter call and the verifier.
+
+### Use these SDK helpers verbatim
+
+The mock pulled in helpers as we found gaps. Stripe should use the same set:
+
+| Helper | Module | Use |
+|---|---|---|
+| `validate(schema, input, label)` | `@its-just-billing/provider-sdk` | At the top of every public method. |
+| `assertNoReservedKeys(metadata, label)` | same | After validate, before any provider call, on every input that has metadata. |
+| `stripReservedKeys(metadata)` | same | In every normalizer that surfaces a metadata field. |
+| `assertQuantityWithinConstraint(value, q, label)` | same | In `checkout.createSession` (line items), `subscriptions.change` (items), `admin.createSubscription` (input quantity). |
+| `defaultQuantityFor(kind)` | same | On `prices.create` when caller omits `quantity`. |
+| `assertSameCurrency(a, b, label)` | same | Whenever you sum or compare two Money values. |
+| `encodeQuantityToMetadata` / `decodeQuantityFromMetadata` | same | Quantity round-trip via metadata (Stripe-specific). |
+
+### Contract checks the mock added (review-driven; replicate them)
+
+These came out of PR review on the mock. Every adapter that follows the same contract owes them:
+
+1. **`checkout.createSession`** must reject:
+   - Inactive prices (`!price.active`) → `ProviderConstraintError`.
+   - Inactive discounts (lookup-by-id OR lookup-by-code paths) → `ProviderConstraintError`.
+   - Archived customers (`customer.archived` or Stripe `deleted: true`) → `ProviderNotFoundError`.
+   - Mixed-currency line items (track currency from the first line item, reject any other) → `ProviderConstraintError`.
+   - Per-line-item quantity outside the price's quantity bounds → `ProviderConstraintError`.
+2. **`subscriptions.change`** must validate each item's price (`exists`, `active`, `kind === 'recurring'`) and call `assertQuantityWithinConstraint` against the price's quantity. Also must set `cancelAtPeriodEnd = false` whenever called — a `change()` always overrides any prior scheduled cancellation.
+3. **`webhooks.verify`** must parse the decoded JSON payload through `ProviderEventSchema.safeParse`, not a hand-rolled shape check. Unknown event types / resource kinds / unparseable `occurredAt` strings must surface as `WebhookSignatureError`, not return a malformed event. JSON encodes `occurredAt` as a string — coerce to Date before `safeParse`.
+4. **Return optional `payload` / `raw` fields from verified events** — `eventResult.data` includes them when present; don't drop them.
+5. **Don't leak references** — Normalizers must defensively clone:
+   - **Dates** — `new Date(d.getTime())` so callers can't `c.createdAt.setTime(0)` into provider state. Use `provider-mock/src/clone-date.ts` as a pattern.
+   - **`quantity`** on prices — `{ ...q }` on both read and write paths.
+   - Caller-supplied metadata, items arrays, line items, etc. — already cloned in the mock; mirror it.
+6. **`webhooks.listEndpoints`** ignores cursor/limit (Stripe also returns paged endpoints, but `WebhooksListEndpointsInputSchema` has no cursor/limit — see if you need to add pagination to the schema or just iterate Stripe's paging and return everything in one shot; the mock returns everything with `nextCursor: null`).
+
+### Conformance schema fixes already in the SDK
+
+These three landed during mock work; the suites assume them, so don't worry about hitting them again:
+
+- `DiscountApplication` union in `schemas/checkout/create-session.ts` has `.strict()` on each member, so `{ kind: 'discountId', discountId: '…', code: '…' }` is rejected as validation rather than letting Zod silently strip the extra field.
+- `subscriptions.list` tests assert `out.data` shape (page envelope), not bare array.
+- The `it.skipIf` → `lazySkipIf` migration (see §Patterns) — fixture and self-setup suites won't skip-everything against your harness anymore.
+
+### Conformance harness: `assertConsistency` shape
+
+The mock returns `undefined` for `assertConsistency`. Stripe should populate every applicable verifier. Pattern per model:
+
+```ts
+// in createStripeHarness
+async customer(output) {
+  const native = await stripe.customers.retrieve(output.id);
+  if ('deleted' in native && native.deleted) throw new Error(`consistency: customer ${output.id} is deleted`);
+  if (native.email !== output.email) throw new Error(`consistency: email mismatch`);
+  if (native.name !== output.name) throw new Error(`consistency: name mismatch`);
+},
+async subscription(output) {
+  const native = await stripe.subscriptions.retrieve(output.id);
+  if (native.status !== output.status) throw new Error(`status ${output.status} vs ${native.status}`);
+  if (native.cancel_at_period_end !== output.cancelAtPeriodEnd) throw new Error(`cancelAtPeriodEnd mismatch`);
+  if (native.items.data.length !== output.items.length) throw new Error(`item count mismatch`);
+},
+// ... per model (product, price, discount, purchase, webhookEndpoint)
+```
+
+Run after every successful write in conformance — the SDK already calls `harness.assertConsistency?.<model>?.(out)` in the right places. You just have to provide the function.
+
+### Env-var fixtures
+
+The fixture suite gates each scenario on `harness.fixtures.<id>`. The mock seeds these in-process; Stripe should pull them from env vars so they survive between runs. Document required vars in `harness.ts` JSDoc:
+
+```ts
+// Required by the fixture suite:
+//   STRIPE_TEST_API_KEY              — Stripe test-mode secret key
+//   STRIPE_FIXTURE_CUSTOMER_ID       — active customer, no caller metadata
+//   STRIPE_FIXTURE_PRODUCT_ID        — active product, taxCategory in capabilities
+//   STRIPE_FIXTURE_RECURRING_PRICE_ID — active recurring price on the product
+//   STRIPE_FIXTURE_ONE_TIME_PRICE_ID  — active one-time price on the product
+//   STRIPE_FIXTURE_SUBSCRIPTION_ID    — active subscription on a DIFFERENT recurring price (see mock harness comment)
+//   STRIPE_FIXTURE_DISCOUNT_ID        — active discount
+//   STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID — active webhook endpoint
+```
+
+The `STRIPE_FIXTURE_SUBSCRIPTION_ID` MUST be on a different recurring price than `STRIPE_FIXTURE_RECURRING_PRICE_ID` — otherwise the price-change fixture scenario short-circuits (it skips when the subscription is already on the swap target). The mock harness comment explains this; Stripe needs to provision two recurring prices in test mode and document which is which.
+
+### Self-setup capabilities
+
+The mock can self-create subscriptions and complete purchases via `admin.createSubscription` / `admin.completePurchase`. Stripe can also do both, but completing a purchase requires a test-mode payment method. Strategy:
+
+- `setup.createSubscription` — use `stripe.subscriptions.create({ customer, items: [{ price, quantity }], payment_behavior: 'default_incomplete' })` and (depending on price) either attach a test PaymentMethod or rely on the default test card. Normalize the result and return.
+- `setup.completePurchase` — Stripe doesn't expose a public "complete this checkout session" API. Options: (a) skip — leave `completePurchase` undefined, accept that self-setup purchase tests will skip cleanly; (b) construct a `PaymentIntent` + `Charge` directly and synthesize a purchase. Option (a) is the pragmatic answer.
+
+### Sanity checks before you call it done
+
+```bash
+pnpm -w turbo run build
+pnpm --filter @its-just-billing/provider-stripe typecheck
+pnpm --filter @its-just-billing/provider-stripe test     # automated suite only; no fixtures needed
+# With env vars set:
+STRIPE_TEST_API_KEY=sk_test_… pnpm --filter @its-just-billing/provider-stripe test:conformance:automated
+STRIPE_TEST_API_KEY=sk_test_… STRIPE_FIXTURE_CUSTOMER_ID=cus_… … pnpm --filter @its-just-billing/provider-stripe test
+pnpm --filter @its-just-billing/provider-sdk check:conformance-purity
+npx biome check packages/provider-stripe/
+```
+
+Success criterion: every conformance test either passes against your harness or skips cleanly when a fixture is missing. The mock's 920-test green run is the benchmark — Stripe should match it modulo fixture-env-var gating.
 
 ---
 
