@@ -1,20 +1,18 @@
 import {
   type Checkout,
   type CheckoutLineItem,
-  ProviderConstraintError,
-  ProviderNotFoundError,
   Schemas,
+  assertCapabilityValueSupported,
   assertNoReservedKeys,
-  assertQuantityWithinConstraint,
   validate,
 } from '@its-just-billing/provider-sdk';
 import type Stripe from 'stripe';
+import { STRIPE_CAPABILITIES } from '../capabilities.js';
 import { isStripeNotFound, mapStripeError } from '../error-mapping.js';
 import {
   normalizeStripeCheckoutSession,
   stripeLineItemToCheckoutLineItem,
 } from '../normalize/checkout.js';
-import { normalizeStripePrice } from '../normalize/price.js';
 import type { StripeCheckoutPresentation } from '../presentation.js';
 import { trialToStripeDays } from '../trial-translation.js';
 
@@ -30,94 +28,21 @@ export function createCheckoutDomain(
       );
       assertNoReservedKeys(parsed.metadata, 'checkout.createSession');
 
-      // Pre-flight: load each price, validate active + per-line-item quantity
-      // bounds, and verify all line items share a single currency. These
-      // checks happen before any Stripe write so failures surface cleanly.
-      let sessionCurrency: string | null = null;
-      let mode: 'payment' | 'subscription' = 'payment';
-      for (const li of parsed.lineItems) {
-        let priceNative: Stripe.Price;
-        try {
-          priceNative = await stripe.prices.retrieve(li.priceId);
-        } catch (err) {
-          if (isStripeNotFound(err)) {
-            throw new ProviderNotFoundError({ message: `Price ${li.priceId} not found` });
-          }
-          throw mapStripeError(err, 'checkout.createSession');
-        }
-        if (!priceNative.active) {
-          throw new ProviderConstraintError({ message: `Price ${priceNative.id} is inactive` });
-        }
-        const price = normalizeStripePrice(priceNative);
-        if (sessionCurrency === null) {
-          sessionCurrency = price.currency;
-        } else if (price.currency !== sessionCurrency) {
-          throw new ProviderConstraintError({
-            message: `Line items mix currencies (${sessionCurrency} and ${price.currency}); a checkout session must use a single currency`,
-            details: { expected: sessionCurrency, found: price.currency },
-          });
-        }
-        assertQuantityWithinConstraint(li.quantity, price.quantity, 'checkout.createSession');
-        if (price.kind === 'recurring') mode = 'subscription';
-      }
+      // Pure pass-through: map normalized fields straight onto Stripe's
+      // session create call and let Stripe accept/reject. No pre-flight
+      // retrieves — the consumer holds price recurrence/quantity/currency in
+      // its own persistence and supplies `mode`; an inactive price, a
+      // currency mix, or a bad discount id is rejected by Stripe and surfaced
+      // via mapStripeError.
+      const mode = parsed.mode;
 
-      // Customer must exist + not be deleted (Stripe's archived equivalent).
-      if (parsed.customerId) {
-        try {
-          const cust = await stripe.customers.retrieve(parsed.customerId);
-          if ('deleted' in cust && cust.deleted) {
-            throw new ProviderNotFoundError({
-              message: `Customer ${parsed.customerId} not found`,
-            });
-          }
-        } catch (err) {
-          if (isStripeNotFound(err)) {
-            throw new ProviderNotFoundError({
-              message: `Customer ${parsed.customerId} not found`,
-            });
-          }
-          throw mapStripeError(err, 'checkout.createSession');
-        }
-      }
-
-      // Resolve and validate discount before opening the session.
+      // Discount: pass the resolved id straight through. There is no `code`
+      // kind — the consumer resolves human codes from its own store.
       let discountParam: Stripe.Checkout.SessionCreateParams.Discount | undefined;
       let allowPromotionCodes = false;
       if (parsed.discount) {
         if (parsed.discount.kind === 'discountId') {
-          let pc: Stripe.PromotionCode;
-          try {
-            pc = await stripe.promotionCodes.retrieve(parsed.discount.discountId);
-          } catch (err) {
-            if (isStripeNotFound(err)) {
-              throw new ProviderNotFoundError({
-                message: `Discount ${parsed.discount.discountId} not found`,
-              });
-            }
-            throw mapStripeError(err, 'checkout.createSession');
-          }
-          if (!pc.active) {
-            throw new ProviderConstraintError({ message: `Discount ${pc.id} is inactive` });
-          }
-          discountParam = { promotion_code: pc.id };
-        } else if (parsed.discount.kind === 'code') {
-          const code = parsed.discount.code;
-          let found: Stripe.PromotionCode | null = null;
-          try {
-            const list = await stripe.promotionCodes.list({ code, limit: 1 });
-            found = list.data[0] ?? null;
-          } catch (err) {
-            throw mapStripeError(err, 'checkout.createSession');
-          }
-          if (!found) {
-            throw new ProviderNotFoundError({ message: `Discount code ${code} not found` });
-          }
-          if (!found.active) {
-            throw new ProviderConstraintError({
-              message: `Discount code ${code} is inactive`,
-            });
-          }
-          discountParam = { promotion_code: found.id };
+          discountParam = { promotion_code: parsed.discount.discountId };
         } else {
           // 'allowPromotionCodes' kind. Stripe rejects combining
           // `discounts` and `allow_promotion_codes`; we only set the latter.
@@ -125,19 +50,17 @@ export function createCheckoutDomain(
         }
       }
 
-      // Trial: translate the SDK spec to Stripe's `subscription_data.
-      // trial_period_days`. Only meaningful on subscription-mode sessions —
-      // Stripe rejects `subscription_data` on payment-mode sessions, and a
-      // trial on a one-time cart is semantically incoherent. Surface the
-      // mismatch as a ProviderConstraintError rather than letting Stripe
-      // reject opaquely.
+      // Trial: capability-gate the unit (hard invariant — Stripe is day-only),
+      // then translate to Stripe's `trial_period_days`. Cheap, no round trip.
+      // Stripe itself rejects `subscription_data` on a payment-mode session.
       let trialDays: number | undefined;
       if (parsed.trial !== undefined) {
-        if (mode !== 'subscription') {
-          throw new ProviderConstraintError({
-            message: `trial is only valid on a checkout session that includes at least one recurring price`,
-          });
-        }
+        assertCapabilityValueSupported(
+          STRIPE_CAPABILITIES.trialUnits,
+          parsed.trial.unit,
+          'trial.unit',
+          'checkout.createSession',
+        );
         trialDays = trialToStripeDays(parsed.trial);
       }
 

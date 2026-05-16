@@ -38,6 +38,31 @@
           }
         ]
       },
+      "ProductRecurrence": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "intervalCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "interval",
+          "intervalCount"
+        ]
+      },
       "Metadata": {
         "type": "object",
         "additionalProperties": {
@@ -67,6 +92,9 @@
           },
           "taxCategory": {
             "$ref": "#/components/schemas/TaxCategoryOutput"
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/ProductRecurrence"
           },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
@@ -173,6 +201,16 @@
           "taxCategory": {
             "$ref": "#/components/schemas/TaxCategory"
           },
+          "recurrence": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductRecurrence"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
           "metadata": {
             "$ref": "#/components/schemas/Metadata"
           }
@@ -181,7 +219,7 @@
           "name",
           "taxCategory"
         ],
-        "description": "Newly created products are always active. `taxCategory` is required — both Stripe and Paddle benefit from an explicit tax category at create time. To soft-delete, call `deactivate`; to restore, call `activate`. `description` must be omitted or a non-empty string; empty string is rejected."
+        "description": "Newly created products are always active. `taxCategory` is required — both Stripe and Paddle benefit from an explicit tax category at create time. To soft-delete, call `deactivate`; to restore, call `activate`. `description` must be omitted or a non-empty string; empty string is rejected. `recurrence` is accepted only by product-level-recurrence providers; price-level providers reject it."
       },
       "ProductsUpdateInput": {
         "type": "object",

@@ -1,4 +1,5 @@
 export * from './validate.js';
+export * from './capability-guard.js';
 export * from './metadata.js';
 export * from './quantity.js';
 export * from './money.js';

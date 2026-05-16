@@ -151,42 +151,6 @@ export function createCheckoutDomain(state: MockState): Checkout<MockCheckoutPre
               computeAppliedDiscount(discount, lineItemSubtotalMinor, sessionCurrency),
             );
           }
-        } else if (parsed.discount.kind === 'code') {
-          let match: InternalDiscount | undefined;
-          for (const d of state.discounts.values()) {
-            if (d.code === parsed.discount.code) {
-              match = d;
-              break;
-            }
-          }
-          if (!match) {
-            throw new ProviderNotFoundError({
-              message: `Discount code ${parsed.discount.code} not found`,
-            });
-          }
-          if (!match.active) {
-            throw new ProviderConstraintError({
-              message: `Discount code ${parsed.discount.code} is inactive`,
-            });
-          }
-          if (
-            match.benefit.kind === 'amount' &&
-            sessionCurrency !== null &&
-            match.benefit.amountOff.currency !== sessionCurrency
-          ) {
-            throw new ProviderConstraintError({
-              message: `Discount ${match.id} currency ${match.benefit.amountOff.currency} does not match session currency ${sessionCurrency}`,
-              details: {
-                expected: sessionCurrency,
-                found: match.benefit.amountOff.currency,
-              },
-            });
-          }
-          if (sessionCurrency !== null) {
-            appliedDiscounts.push(
-              computeAppliedDiscount(match, lineItemSubtotalMinor, sessionCurrency),
-            );
-          }
         }
         // 'allowPromotionCodes' falls through; appliedDiscounts stays [].
       }

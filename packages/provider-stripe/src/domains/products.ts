@@ -4,6 +4,7 @@ import {
   ProviderNotFoundError,
   ProviderNotSupportedError,
   Schemas,
+  assertFeatureEnabled,
   assertNoReservedKeys,
   validate,
 } from '@its-just-billing/provider-sdk';
@@ -57,6 +58,16 @@ export function createProductsDomain(
           value: parsed.taxCategory,
           message: `Stripe does not support taxCategory=${parsed.taxCategory}`,
         });
+      }
+      // Stripe models recurrence on the Price, not the Product. Reject a
+      // product-level recurrence block explicitly rather than silently
+      // dropping it (capabilities.features.productLevelRecurrence === false).
+      if (parsed.recurrence !== undefined) {
+        assertFeatureEnabled(
+          capabilities.features.productLevelRecurrence,
+          'product.recurrence',
+          'products.create',
+        );
       }
       // `description` is validated as `string().min(1).nullable().optional()`
       // — empty string is rejected at the SDK boundary, so by the time we get

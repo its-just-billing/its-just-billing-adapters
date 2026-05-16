@@ -3,6 +3,7 @@ import {
   MetadataCollisionError,
   ProviderConstraintError,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   ProviderValidationError,
 } from '../../../errors/index.js';
 import type {
@@ -167,6 +168,7 @@ export function registerCheckoutAutomatedSuite(
       it('returns a session with sensible defaults for a minimal input', async () => {
         const s = await provider.checkout.createSession({
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment',
           successUrl: 'https://example.com/success',
         });
         expectIsCheckoutSession(s);
@@ -183,6 +185,7 @@ export function registerCheckoutAutomatedSuite(
         const metadata = { ref: 'X' };
         const s = await provider.checkout.createSession({
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment',
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
           customerId: fixtureCustomer.id,
@@ -198,6 +201,7 @@ export function registerCheckoutAutomatedSuite(
       it('accepts discount:{kind:"allowPromotionCodes"}', async () => {
         const s = await provider.checkout.createSession({
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment',
           successUrl: 'https://example.com/success',
           discount: { kind: 'allowPromotionCodes' },
         });
@@ -219,6 +223,7 @@ export function registerCheckoutAutomatedSuite(
         try {
           const s = await provider.checkout.createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'payment',
             successUrl: 'https://example.com/success',
             discount: { kind: 'discountId', discountId: discount.id },
           });
@@ -256,6 +261,7 @@ export function registerCheckoutAutomatedSuite(
         await expect(
           provider.checkout.createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'subscription',
             successUrl: 'https://example.com/success',
             trial: { count: 0, unit: 'day' } as any,
           }),
@@ -263,6 +269,7 @@ export function registerCheckoutAutomatedSuite(
         await expect(
           provider.checkout.createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'subscription',
             successUrl: 'https://example.com/success',
             trial: { count: -5, unit: 'day' } as any,
           }),
@@ -273,10 +280,37 @@ export function registerCheckoutAutomatedSuite(
         await expect(
           provider.checkout.createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'subscription',
             successUrl: 'https://example.com/success',
             trial: { count: 14, unit: 'fortnight' as any },
           }),
         ).rejects.toBeInstanceOf(ProviderValidationError);
+      });
+
+      it('trial unit outside capabilities.trialUnits → ProviderNotSupportedError(422)', async () => {
+        // Pick a normalized trial unit the provider does NOT advertise. If it
+        // supports all four, there's nothing to exercise — early return per
+        // the capabilities-suite convention.
+        const ALL_UNITS = ['day', 'week', 'month', 'year'] as const;
+        const unsupported = ALL_UNITS.find((u) => !provider.capabilities.trialUnits.has(u));
+        if (unsupported === undefined) return;
+        const err = await provider.checkout
+          .createSession({
+            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'subscription',
+            successUrl: 'https://example.com/success',
+            trial: { count: 1, unit: unsupported },
+          })
+          .then(
+            () => null,
+            (e: unknown) => e,
+          );
+        expect(err).toBeInstanceOf(ProviderNotSupportedError);
+        const e = err as ProviderNotSupportedError;
+        expect(e.status).toBe(422);
+        expect(e.code).toBe('not_supported');
+        expect(e.feature).toBe('trial.unit');
+        expect(e.value).toBe(unsupported);
       });
 
       it('preserves multiple lineItems in order', async () => {
@@ -294,6 +328,7 @@ export function registerCheckoutAutomatedSuite(
         ];
         const s = await provider.checkout.createSession({
           lineItems,
+          mode: 'payment',
           successUrl: 'https://example.com/success',
         });
         expectIsCheckoutSession(s);
@@ -303,6 +338,7 @@ export function registerCheckoutAutomatedSuite(
       it('after createSession, getSession returns an equivalent session', async () => {
         const s = await provider.checkout.createSession({
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment',
           successUrl: 'https://example.com/success',
           cancelUrl: 'https://example.com/cancel',
           metadata: { trace: 'abc' },
@@ -351,6 +387,7 @@ export function registerCheckoutAutomatedSuite(
         ];
         const s = await provider.checkout.createSession({
           lineItems,
+          mode: 'payment',
           successUrl: 'https://example.com/success',
         });
         expectIsCheckoutSession(s);
@@ -371,6 +408,7 @@ export function registerCheckoutAutomatedSuite(
       it('two creates with the same input yield distinct sessions', async () => {
         const input = {
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment' as const,
           successUrl: 'https://example.com/success',
         };
         const a = await provider.checkout.createSession(input);
@@ -493,7 +531,8 @@ export function registerCheckoutAutomatedSuite(
         ['unknown kind', { kind: 'unknown' }],
         ['discountId without id', { kind: 'discountId' }],
         ['discountId empty', { kind: 'discountId', discountId: '' }],
-        ['code empty', { kind: 'code', code: '' }],
+        ['removed code kind', { kind: 'code', code: 'X' }],
+        ['allowPromotionCodes with extra key', { kind: 'allowPromotionCodes', code: 'X' }],
         ['combined keys', { kind: 'discountId', discountId: 'd1', code: 'X' }],
       ])('rejects invalid discount (%s)', async (_l, discount) => {
         await expect(
@@ -539,6 +578,7 @@ export function registerCheckoutAutomatedSuite(
         const err = await provider.checkout
           .createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'payment',
             successUrl: 'https://example.com/success',
             metadata: { __provider_secret: 'x' } as any,
           })
@@ -551,10 +591,16 @@ export function registerCheckoutAutomatedSuite(
       });
 
       // ---- constraint cases ----
-      it('discount.discountId unknown → ProviderNotFoundError(404) or ProviderConstraintError(422)', async () => {
+      it('discount.discountId unknown → provider-rejected (pure pass-through)', async () => {
+        // checkout is a pure pass-through: the adapter does not pre-resolve
+        // the discount. An unknown id is rejected by the provider (or its
+        // in-memory store) and surfaced as a normalized error — the exact
+        // class is provider-dependent, so accept the not-found / constraint /
+        // validation family rather than pinning one.
         const err = await provider.checkout
           .createSession({
             lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+            mode: 'payment',
             successUrl: 'https://example.com/success',
             discount: {
               kind: 'discountId',
@@ -565,38 +611,14 @@ export function registerCheckoutAutomatedSuite(
             () => null,
             (e: unknown) => e,
           );
-        expect(err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError).toBe(
-          true,
-        );
-        if (err instanceof ProviderNotFoundError) {
-          expect(err.status).toBe(404);
-        } else if (err instanceof ProviderConstraintError) {
-          expect(err.status).toBe(422);
-        }
+        expect(
+          err instanceof ProviderNotFoundError ||
+            err instanceof ProviderConstraintError ||
+            err instanceof ProviderValidationError,
+        ).toBe(true);
       });
 
-      it('discount.code unknown → ProviderNotFoundError(404) or ProviderConstraintError(422)', async () => {
-        const err = await provider.checkout
-          .createSession({
-            lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
-            successUrl: 'https://example.com/success',
-            discount: { kind: 'code', code: 'CODE_DOES_NOT_EXIST_XYZ_123' },
-          })
-          .then(
-            () => null,
-            (e: unknown) => e,
-          );
-        expect(err instanceof ProviderNotFoundError || err instanceof ProviderConstraintError).toBe(
-          true,
-        );
-        if (err instanceof ProviderNotFoundError) {
-          expect(err.status).toBe(404);
-        } else if (err instanceof ProviderConstraintError) {
-          expect(err.status).toBe(422);
-        }
-      });
-
-      it('quantity outside the price quantity bounds → ProviderConstraintError(422)', async () => {
+      it('quantity vs price bounds at checkout is gated by capabilities.features.priceQuantityConstraints', async () => {
         const boundedPrice = await provider.prices.create({
           productId: fixtureProduct.id,
           currency: 'usd',
@@ -606,17 +628,35 @@ export function registerCheckoutAutomatedSuite(
         });
         createdPriceIds.add(boundedPrice.id);
 
-        const err = await provider.checkout
+        const result = await provider.checkout
           .createSession({
             lineItems: [{ priceId: boundedPrice.id, quantity: 1 }],
+            mode: 'payment',
             successUrl: 'https://example.com/success',
           })
           .then(
-            () => null,
-            (e: unknown) => e,
+            (s) => ({ ok: true as const, s }),
+            (e: unknown) => ({ ok: false as const, e }),
           );
-        expect(err).toBeInstanceOf(ProviderConstraintError);
-        expect((err as ProviderConstraintError).status).toBe(422);
+
+        if (provider.capabilities.features.priceQuantityConstraints) {
+          // Provider enforces the constraint (its store/native check rejects).
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.e).toBeInstanceOf(ProviderConstraintError);
+            expect((result.e as ProviderConstraintError).status).toBe(422);
+          }
+        } else {
+          // Constraint is consumer-owned: the adapter passes the quantity
+          // straight through and the provider has no native bound, so the
+          // session opens. (The constraint still round-trips on the price.)
+          expect(result.ok).toBe(true);
+          if (result.ok) {
+            expectIsCheckoutSession(result.s);
+            const persisted = await provider.prices.get({ id: boundedPrice.id });
+            expect(persisted?.quantity).toEqual({ min: 2, max: 5 });
+          }
+        }
       });
     });
 
@@ -627,6 +667,7 @@ export function registerCheckoutAutomatedSuite(
       it('returns an equivalent session after createSession', async () => {
         const s = await provider.checkout.createSession({
           lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+          mode: 'payment',
           successUrl: 'https://example.com/success',
         });
         const got = await provider.checkout.getSession({ id: s.id });

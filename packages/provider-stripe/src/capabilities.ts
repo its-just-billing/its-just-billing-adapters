@@ -1,6 +1,8 @@
 import type {
   ProviderCapabilities,
   ProviderEventType,
+  ProviderFeatureFlags,
+  RecurringInterval,
   TaxCategory,
 } from '@its-just-billing/provider-sdk';
 
@@ -90,8 +92,40 @@ const WEBHOOK_EVENT_TYPES: ReadonlySet<ProviderEventType> = new Set<ProviderEven
   'billing_document.finalized',
 ]);
 
+/**
+ * Stripe accepts trials in days only (`trial_period_days`). `day` and `week`
+ * convert exactly to an integer day count; `month`/`year` have no fixed-day
+ * equivalent, so they are rejected via `ProviderNotSupportedError` rather than
+ * silently approximated. See `trial-translation.ts`.
+ */
+const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>(['day', 'week']);
+
+/**
+ * Stripe behavioral flags.
+ *
+ * - `priceQuantityConstraints: false` — Stripe has no native price-level
+ *   quantity constraint; enforcing it at checkout would cost an N+1
+ *   per-line-item `prices.retrieve`. The constraint still round-trips on
+ *   `ProviderPrice.quantity`; the consumer enforces it from persistence.
+ * - `priceLevelRecurrence: true` / `productLevelRecurrence: false` — Stripe
+ *   models recurrence on the Price.
+ * - `discountProductRestrictions: true` — enforced natively via
+ *   `coupon.applies_to.products` (zero extra round-trips).
+ * - `discountPriceRestrictions: false` — Stripe has no native price-scoped
+ *   restriction; the value round-trips but is not enforced by the adapter.
+ */
+const FEATURES: ProviderFeatureFlags = {
+  priceQuantityConstraints: false,
+  priceLevelRecurrence: true,
+  productLevelRecurrence: false,
+  discountProductRestrictions: true,
+  discountPriceRestrictions: false,
+};
+
 export const STRIPE_CAPABILITIES: ProviderCapabilities = {
   taxCategories: TAX_CATEGORIES,
   currencies: CURRENCIES,
   webhookEventTypes: WEBHOOK_EVENT_TYPES,
+  trialUnits: TRIAL_UNITS,
+  features: FEATURES,
 };

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   MetadataCollisionError,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   ProviderValidationError,
 } from '../../../errors/index.js';
 import type { BillingProvider, ProviderProduct } from '../../../index.js';
@@ -144,6 +145,35 @@ export function registerProductsAutomatedSuite(
         expect(p.metadata).toEqual({});
         expectCreatedAtRecent(p);
         expect(p.updatedAt.getTime()).toBeGreaterThanOrEqual(p.createdAt.getTime());
+      });
+
+      it('product-level recurrence is gated by capabilities.features.productLevelRecurrence', async () => {
+        const recurrence = { interval: 'month' as const, intervalCount: 1 };
+        if (provider.capabilities.features.productLevelRecurrence) {
+          const p = await provider.products.create({
+            name: uniqueName(),
+            taxCategory: 'saas',
+            recurrence,
+          });
+          track(p.id);
+          expectIsProduct(p);
+          await harness.assertConsistency?.product?.(p);
+          expect(p.recurrence).toEqual(recurrence);
+        } else {
+          // Price-level provider: a product-level recurrence block is an
+          // explicit, declared not-supported — never silently dropped.
+          const err = await provider.products
+            .create({ name: uniqueName(), taxCategory: 'saas', recurrence })
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(err).toBeInstanceOf(ProviderNotSupportedError);
+          const e = err as ProviderNotSupportedError;
+          expect(e.status).toBe(422);
+          expect(e.code).toBe('not_supported');
+          expect(e.feature).toBe('product.recurrence');
+        }
       });
 
       it('round-trips name/description/metadata on create; active defaults to true', async () => {

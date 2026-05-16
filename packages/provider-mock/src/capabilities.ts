@@ -1,6 +1,8 @@
 import type {
   ProviderCapabilities,
   ProviderEventType,
+  ProviderFeatureFlags,
+  RecurringInterval,
   TaxCategory,
 } from '@its-just-billing/provider-sdk';
 
@@ -82,8 +84,32 @@ const WEBHOOK_EVENT_TYPES: ReadonlySet<ProviderEventType> = new Set<ProviderEven
   'billing_document.finalized',
 ]);
 
+/** The mock honors trials in any normalized unit (no day-only constraint). */
+const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
+  'day',
+  'week',
+  'month',
+  'year',
+]);
+
+/**
+ * The mock turns on every behavioral flag it can so the conformance harness
+ * exercises the *on* branches that Stripe (a price-level, day-only-trial,
+ * no-price-restriction provider) leaves off. `productLevelRecurrence` stays
+ * `false`: the mock models recurrence on the price like Stripe/Paddle.
+ */
+const FEATURES: ProviderFeatureFlags = {
+  priceQuantityConstraints: true,
+  priceLevelRecurrence: true,
+  productLevelRecurrence: false,
+  discountProductRestrictions: true,
+  discountPriceRestrictions: true,
+};
+
 export const MOCK_CAPABILITIES: ProviderCapabilities = {
   taxCategories: TAX_CATEGORIES,
   currencies: CURRENCIES,
   webhookEventTypes: WEBHOOK_EVENT_TYPES,
+  trialUnits: TRIAL_UNITS,
+  features: FEATURES,
 };

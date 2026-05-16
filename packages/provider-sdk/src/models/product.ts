@@ -1,6 +1,24 @@
 import { z } from '../zod.js';
 import { MetadataSchema } from './metadata.js';
+import { RecurringIntervalSchema } from './price.js';
 import { TaxCategoryOutputSchema } from './tax-category.js';
+
+/**
+ * Billing recurrence expressed on the *product*. Only meaningful for
+ * providers whose model attaches recurrence to the product rather than the
+ * price (Polar). Providers with price-level recurrence
+ * (`capabilities.features.priceLevelRecurrence`) leave this `null` and carry
+ * recurrence on `ProviderPrice` instead. Shape mirrors the recurring price
+ * kind so a consumer reads one concept regardless of provider.
+ */
+export const ProductRecurrenceSchema = z
+  .object({
+    interval: RecurringIntervalSchema,
+    intervalCount: z.number().int().positive(),
+  })
+  .openapi('ProductRecurrence');
+
+export type ProductRecurrence = z.infer<typeof ProductRecurrenceSchema>;
 
 export const ProviderProductSchema = z
   .object({
@@ -9,6 +27,10 @@ export const ProviderProductSchema = z
     description: z.string().nullable(),
     active: z.boolean(),
     taxCategory: TaxCategoryOutputSchema,
+    // Present (non-null) only for product-level-recurrence providers.
+    // Optional so price-level adapters need not emit it — forward-compatible
+    // for the future Polar adapter without revving existing ones.
+    recurrence: ProductRecurrenceSchema.nullable().optional(),
     metadata: MetadataSchema,
     createdAt: z.date(),
     updatedAt: z.date(),

@@ -172,6 +172,7 @@ export function registerPaymentsSemiManualSuite(
           await harness.assertConsistency?.price?.(price);
           const session = await provider.checkout.createSession({
             lineItems: [{ priceId: price.id, quantity: 1 }],
+            mode: 'payment',
             successUrl: 'https://example.com/s',
             customerId: customer.id,
           });

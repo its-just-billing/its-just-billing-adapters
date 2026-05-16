@@ -47,17 +47,33 @@ function durationOf(coupon: Stripe.Coupon): DiscountDuration {
 export const ANONYMOUS_CODE_MARKER_KEY = '__provider_anonymous_code';
 
 /**
- * Reserved metadata keys for round-tripping `restrictedTo`. Stripe's native
- * coupon supports restriction by product only (`applies_to.products`) and
- * rejects unknown product ids. The SDK contract treats `restrictedTo` as
- * caller-supplied state that round-trips through the API, not as an enforced
- * restriction. Stash the values in managed metadata so the round-trip works
- * regardless of whether the referenced products exist on Stripe, and read
- * from there in the normalizer (falling back to `applies_to.products` for
- * dashboard-created coupons that don't have the marker).
+ * Reserved metadata key for round-tripping price-scoped `restrictedTo`.
+ *
+ * Restriction splits by what Stripe can enforce natively with zero extra
+ * round-trips (the discriminator for mimic-vs-capability):
+ *
+ *  - **Product** scope → Stripe's native `coupon.applies_to.products`. The
+ *    adapter sets it directly (one field on the create call) and reads it
+ *    back, so `capabilities.features.discountProductRestrictions` is `true`.
+ *    Stripe rejects product ids that don't exist on the account — that's
+ *    honest native enforcement, not something we paper over.
+ *  - **Price** scope → Stripe has no native mechanism. We round-trip the
+ *    value in managed metadata so it isn't lost, but the adapter does not
+ *    enforce it; `capabilities.features.discountPriceRestrictions` is `false`
+ *    and the consumer enforces it from its own persistence.
  */
-export const RESTRICTED_PRODUCT_IDS_KEY = '__provider_restricted_products';
 export const RESTRICTED_PRICE_IDS_KEY = '__provider_restricted_prices';
+
+/**
+ * Legacy reserved key. Before product restriction moved to native
+ * `coupon.applies_to`, the adapter stashed `restrictedTo.productIds` in this
+ * promotion-code metadata key and never set native `applies_to`. We no longer
+ * *write* it, but discounts created by the old code carry product ids only
+ * here — read it as a fallback so those round-trip instead of silently
+ * becoming `restrictedTo: null`. Native `applies_to` (the new source of
+ * truth) takes precedence when present.
+ */
+const LEGACY_RESTRICTED_PRODUCT_IDS_KEY = '__provider_restricted_products';
 
 /**
  * Stripe discount = `PromotionCode` (the customer-facing redeemable) +
@@ -79,20 +95,27 @@ function parseIdList(value: string | undefined): string[] | undefined {
 }
 
 function restrictedToOf(pc: Stripe.PromotionCode): ProviderDiscount['restrictedTo'] {
-  // Prefer the SDK-managed metadata; this is how we round-trip values that
-  // Stripe's native applies_to can't represent (priceIds, or productIds that
-  // don't exist on the account).
-  const productIds = parseIdList(pc.metadata?.[RESTRICTED_PRODUCT_IDS_KEY]);
-  const priceIds = parseIdList(pc.metadata?.[RESTRICTED_PRICE_IDS_KEY]);
-  if (productIds !== undefined || priceIds !== undefined) {
-    const out: { productIds?: string[]; priceIds?: string[] } = {};
-    if (productIds !== undefined) out.productIds = productIds;
-    if (priceIds !== undefined) out.priceIds = priceIds;
-    return out;
-  }
-  // Fall back to native applies_to for dashboard-created / pre-marker coupons.
+  // Product scope: native applies_to is the source of truth (the adapter
+  // writes it there and Stripe enforces it). Stripe omits the embedded
+  // coupon's `applies_to` from a PromotionCode response unless
+  // `expand: ['coupon.applies_to']` is requested — the discounts domain does
+  // exactly that on every read (a same-request expand, zero extra round
+  // trips; empirically required and accepted by the live API, contrary to it
+  // looking like a non-expandable sub-object). Fall back to the legacy
+  // metadata key for discounts created before the move to native applies_to.
   const nativeProducts = pc.coupon.applies_to?.products ?? [];
-  return nativeProducts.length > 0 ? { productIds: [...nativeProducts] } : null;
+  const productIds =
+    nativeProducts.length > 0
+      ? [...nativeProducts]
+      : parseIdList(pc.metadata?.[LEGACY_RESTRICTED_PRODUCT_IDS_KEY]);
+  // Price scope: round-tripped via managed metadata (Stripe has no native
+  // price restriction). Not enforced by the adapter.
+  const priceIds = parseIdList(pc.metadata?.[RESTRICTED_PRICE_IDS_KEY]);
+  if (productIds === undefined && priceIds === undefined) return null;
+  const out: { productIds?: string[]; priceIds?: string[] } = {};
+  if (productIds !== undefined) out.productIds = productIds;
+  if (priceIds !== undefined) out.priceIds = priceIds;
+  return out;
 }
 
 export function normalizeStripePromotionCode(

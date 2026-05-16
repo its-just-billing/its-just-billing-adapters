@@ -1,5 +1,9 @@
 import { MetadataSchema } from '../../models/metadata.js';
-import { type ProviderProduct, ProviderProductSchema } from '../../models/product.js';
+import {
+  type ProviderProduct,
+  ProductRecurrenceSchema,
+  ProviderProductSchema,
+} from '../../models/product.js';
 import { TaxCategorySchema } from '../../models/tax-category.js';
 import { z } from '../../zod.js';
 
@@ -12,11 +16,15 @@ export const ProductsCreateInputSchema = z
     // that constraint so behavior is consistent across providers.
     description: z.string().min(1).nullable().optional(),
     taxCategory: TaxCategorySchema,
+    // Optional product-level recurrence. Accepted only by providers whose
+    // `capabilities.features.productLevelRecurrence` is true; a price-level
+    // provider (Stripe/Paddle) rejects it with ProviderNotSupportedError.
+    recurrence: ProductRecurrenceSchema.optional(),
     metadata: MetadataSchema.optional(),
   })
   .openapi('ProductsCreateInput', {
     description:
-      'Newly created products are always active. `taxCategory` is required — both Stripe and Paddle benefit from an explicit tax category at create time. To soft-delete, call `deactivate`; to restore, call `activate`. `description` must be omitted or a non-empty string; empty string is rejected.',
+      'Newly created products are always active. `taxCategory` is required — both Stripe and Paddle benefit from an explicit tax category at create time. To soft-delete, call `deactivate`; to restore, call `activate`. `description` must be omitted or a non-empty string; empty string is rejected. `recurrence` is accepted only by product-level-recurrence providers; price-level providers reject it.',
   });
 
 export const ProductsCreateOutputSchema = ProviderProductSchema;

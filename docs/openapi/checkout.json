@@ -180,26 +180,6 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "code"
-                ]
-              },
-              "code": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "kind",
-              "code"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
                   "allowPromotionCodes"
                 ]
               }
@@ -263,6 +243,13 @@
             },
             "minItems": 1
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "payment",
+              "subscription"
+            ]
+          },
           "successUrl": {
             "type": "string",
             "format": "uri"
@@ -283,6 +270,7 @@
         },
         "required": [
           "lineItems",
+          "mode",
           "successUrl"
         ]
       },

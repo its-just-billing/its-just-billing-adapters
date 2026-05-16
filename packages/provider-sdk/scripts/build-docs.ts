@@ -34,12 +34,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
 const docsRoot = resolve(repoRoot, 'docs');
 
+/**
+ * A capability that changes this operation's behavior. When multiple
+ * capabilities affect one operation the rows form a matrix the reader scans
+ * to see how the operation behaves under their provider's flags.
+ */
+type CapabilityEffect = {
+  /** Capability name as exposed on `BillingProvider.capabilities`. */
+  name: string;
+  /** Behavior when the capability is present/true. */
+  whenTrue: string;
+  /** Behavior when the capability is absent/false. */
+  whenFalse: string;
+};
+
 type Op = {
   domain: string;
   method: string;
   input: z.ZodTypeAny;
   output: z.ZodTypeAny;
+  /** Capabilities whose value changes this operation's behavior. */
+  capabilities?: CapabilityEffect[];
 };
+
+const CAPABILITY_MATRIX_MARKER = '<!-- AUTO-GENERATED CAPABILITY MATRIX -->';
 
 const OPERATIONS: Op[] = [
   // customers
@@ -91,6 +109,14 @@ const OPERATIONS: Op[] = [
     method: 'create',
     input: ProductsSchemas.ProductsCreateInputSchema,
     output: ProductsSchemas.ProductsCreateOutputSchema,
+    capabilities: [
+      {
+        name: 'features.productLevelRecurrence',
+        whenTrue: '`recurrence` block accepted and stored on the product.',
+        whenFalse:
+          '`recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.',
+      },
+    ],
   },
   {
     domain: 'products',
@@ -128,12 +154,34 @@ const OPERATIONS: Op[] = [
     method: 'create',
     input: PricesSchemas.PricesCreateInputSchema,
     output: PricesSchemas.PricesCreateOutputSchema,
+    capabilities: [
+      {
+        name: 'features.priceQuantityConstraints',
+        whenTrue: '`quantity` constraint is enforced by the provider at checkout.',
+        whenFalse:
+          '`quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence.',
+      },
+      {
+        name: 'features.priceLevelRecurrence',
+        whenTrue: 'Recurring price `kind` accepted; recurrence lives on the price.',
+        whenFalse:
+          'Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`).',
+      },
+    ],
   },
   {
     domain: 'prices',
     method: 'update',
     input: PricesSchemas.PricesUpdateInputSchema,
     output: PricesSchemas.PricesUpdateOutputSchema,
+    capabilities: [
+      {
+        name: 'features.priceQuantityConstraints',
+        whenTrue: '`quantity` constraint is enforced by the provider at checkout.',
+        whenFalse:
+          '`quantity` is still persisted and round-trips, but is not enforced at checkout by the adapter.',
+      },
+    ],
   },
   {
     domain: 'prices',
@@ -171,6 +219,14 @@ const OPERATIONS: Op[] = [
     method: 'change',
     input: SubscriptionsSchemas.SubscriptionsChangeInputSchema,
     output: SubscriptionsSchemas.SubscriptionsChangeOutputSchema,
+    capabilities: [
+      {
+        name: 'features.priceQuantityConstraints',
+        whenTrue: 'Item `quantity` is enforced against the price quantity constraint.',
+        whenFalse:
+          'Item `quantity` is not enforced against the price constraint — consumer-owned (the price is still validated for existence and recurring kind).',
+      },
+    ],
   },
   {
     domain: 'subscriptions',
@@ -184,6 +240,14 @@ const OPERATIONS: Op[] = [
     method: 'createSession',
     input: CheckoutSchemas.CheckoutCreateSessionInputSchema,
     output: CheckoutSchemas.CheckoutCreateSessionOutputSchema,
+    capabilities: [
+      {
+        name: 'trialUnits',
+        whenTrue: '`trial.unit` in the set is translated and passed to the provider.',
+        whenFalse:
+          '`trial.unit` outside the set is rejected with `ProviderNotSupportedError` (422, feature `trial.unit`).',
+      },
+    ],
   },
   {
     domain: 'checkout',
@@ -389,7 +453,32 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-async function ensureReferenceStub(domain: string, method: string) {
+const CAPABILITY_MATRIX_HEADING = '## Capability Matrix';
+
+/**
+ * Render the capability matrix for an operation. Single source of truth: the
+ * `capabilities` declared on the `Op`. Empty string when the op has none.
+ */
+function renderCapabilityMatrix(op: Op): string {
+  if (!op.capabilities || op.capabilities.length === 0) return '';
+  const rows = op.capabilities
+    .map((c) => `| \`${c.name}\` | ${c.whenTrue} | ${c.whenFalse} |`)
+    .join('\n');
+  return `
+${CAPABILITY_MATRIX_HEADING}
+
+${CAPABILITY_MATRIX_MARKER}
+
+Behavior of \`${op.domain}.${op.method}\` by provider capability — pre-flight via \`provider.capabilities\`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.
+
+| Capability | true / present | false / absent |
+| --- | --- | --- |
+${rows}
+`;
+}
+
+async function ensureReferenceStub(op: Op) {
+  const { domain, method } = op;
   const path = resolve(docsRoot, 'reference', domain, `${method}.md`);
   if (await fileExists(path)) {
     const existing = await readFile(path, 'utf8');
@@ -397,6 +486,7 @@ async function ensureReferenceStub(domain: string, method: string) {
   }
   await mkdir(dirname(path), { recursive: true });
   const operationId = `${domain}.${method}`;
+  const matrixSection = renderCapabilityMatrix(op);
   const stub = `${REFERENCE_STUB_BANNER}
 ---
 title: ${operationId}
@@ -415,7 +505,7 @@ See [\`docs/openapi/${domain}.json\`](../../openapi/${domain}.json) → operatio
 ## Response
 
 See [\`docs/openapi/${domain}.json\`](../../openapi/${domain}.json) → operation \`${operationId}\` → response \`200\`.
-
+${matrixSection}
 ## Errors
 
 _TODO: list the normalized errors this method can throw and when._
@@ -454,6 +544,29 @@ export async function checkDocDrift(): Promise<{ missing: string[]; extra: strin
   return { missing, extra };
 }
 
+/**
+ * Every operation that declares capabilities must surface a Capability Matrix
+ * section on its reference page. The generator emits it into stubs; a
+ * handwritten page must keep the `## Capability Matrix` heading or behavior
+ * drifts from the contract silently. Returns the operation ids that are
+ * missing it.
+ */
+export async function checkCapabilityMatrixDrift(): Promise<string[]> {
+  const offenders: string[] = [];
+  for (const op of OPERATIONS) {
+    if (!op.capabilities || op.capabilities.length === 0) continue;
+    const id = `${op.domain}.${op.method}`;
+    const path = resolve(docsRoot, 'reference', op.domain, `${op.method}.md`);
+    if (!(await fileExists(path))) {
+      offenders.push(id);
+      continue;
+    }
+    const existing = await readFile(path, 'utf8');
+    if (!existing.includes(CAPABILITY_MATRIX_HEADING)) offenders.push(id);
+  }
+  return offenders;
+}
+
 async function main() {
   const byDomain = new Map<string, Op[]>();
   for (const op of OPERATIONS) {
@@ -468,7 +581,7 @@ async function main() {
     const doc = buildOpenApiDocForDomain(domain, ops);
     const outPath = resolve(docsRoot, 'openapi', `${domain}.json`);
     await writeFile(outPath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
-    for (const op of ops) await ensureReferenceStub(domain, op.method);
+    for (const op of ops) await ensureReferenceStub(op);
     console.log(`✓ ${domain} (${ops.length} method${ops.length === 1 ? '' : 's'})`);
   }
 
@@ -484,6 +597,16 @@ async function main() {
     process.exit(1);
   }
   console.log('✓ All registered operations have reference pages.');
+
+  const matrixOffenders = await checkCapabilityMatrixDrift();
+  if (matrixOffenders.length > 0) {
+    console.error(
+      `✗ Capability matrix drift: operations declare capabilities but their reference page lacks a "${CAPABILITY_MATRIX_HEADING}" section:`,
+    );
+    for (const id of matrixOffenders) console.error(`  - ${id}`);
+    process.exit(1);
+  }
+  console.log('✓ All capability-affected operations document a Capability Matrix.');
 }
 
 main().catch((err) => {

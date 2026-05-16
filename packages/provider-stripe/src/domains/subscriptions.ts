@@ -3,7 +3,6 @@ import {
   ProviderNotFoundError,
   Schemas,
   type Subscriptions,
-  assertQuantityWithinConstraint,
   validate,
 } from '@its-just-billing/provider-sdk';
 import type Stripe from 'stripe';
@@ -105,8 +104,13 @@ export function createSubscriptionsDomain(stripe: Stripe): Subscriptions<Stripe.
         'subscriptions.change',
       );
 
-      // Validate each item before any write: price exists, is active, is
-      // recurring, and quantity is within constraint. Mirrors mock + Paddle.
+      // Validate each item before any write: price exists, is active, and is
+      // recurring. The retrieve is required for the recurring check and the
+      // SDK-authored-schedule abstraction (`at_period_end`), which has no
+      // round-trip downside and maps cleanly — so it stays. Quantity
+      // constraints are NOT enforced here: priceQuantityConstraints is a
+      // consumer-owned capability (avoids re-deriving a per-item bound the
+      // consumer already persists).
       const validatedItems: { priceId: string; quantity: number }[] = [];
       for (const item of parsed.items) {
         let priceNative: Stripe.Price;
@@ -128,7 +132,6 @@ export function createSubscriptionsDomain(stripe: Stripe): Subscriptions<Stripe.
           });
         }
         const quantity = item.quantity ?? 1;
-        assertQuantityWithinConstraint(quantity, price.quantity, 'subscriptions.change');
         validatedItems.push({ priceId: item.priceId, quantity });
       }
 

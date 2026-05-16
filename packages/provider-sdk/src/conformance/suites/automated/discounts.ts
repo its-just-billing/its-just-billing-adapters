@@ -172,10 +172,28 @@ export function registerDiscountsAutomatedSuite(
     let harness: ProviderTestHarness;
     let provider: BillingProvider;
     const createdIds = new Set<string>();
+    // Real product + price for restriction tests. Product-scoped restriction
+    // is natively enforced where `discountProductRestrictions` is true
+    // (Stripe rejects ids that don't exist), so these must be real resources
+    // — fabricated ids no longer round-trip.
+    let fixtureProductId: string;
+    let fixturePriceId: string;
 
     beforeAll(async () => {
       harness = await factory();
       provider = harness.provider;
+      const product = await provider.products.create({
+        name: 'fixture-discount-restrict',
+        taxCategory: 'saas',
+      });
+      fixtureProductId = product.id;
+      const price = await provider.prices.create({
+        productId: product.id,
+        currency: 'usd',
+        kind: 'one_time',
+        unitAmount: 1000,
+      });
+      fixturePriceId = price.id;
     });
 
     /**
@@ -275,19 +293,24 @@ export function registerDiscountsAutomatedSuite(
         expect(d.redemptionLimit).toBe(100);
       });
 
-      it('restrictedTo.productIds round-trips', async () => {
+      it('restrictedTo.productIds round-trips (real product id)', async () => {
+        // Product-scoped restriction uses the provider's native mechanism
+        // where supported, which validates existence — so use a real product.
         const d = await provider.discounts.create({
           benefit: percent10,
           duration: once,
-          restrictedTo: { productIds: ['prod_abc'] },
+          restrictedTo: { productIds: [fixtureProductId] },
         });
         track(d.id);
         expectIsDiscount(d);
         await harness.assertConsistency?.discount?.(d);
-        expect(d.restrictedTo).toEqual({ productIds: ['prod_abc'] });
+        expect(d.restrictedTo).toEqual({ productIds: [fixtureProductId] });
       });
 
       it('restrictedTo.priceIds round-trips', async () => {
+        // Price-scoped restriction has no native mechanism on Stripe; it is
+        // round-tripped (consumer-owned, gated by discountPriceRestrictions)
+        // and not existence-validated, so fabricated ids round-trip fine.
         const d = await provider.discounts.create({
           benefit: percent10,
           duration: once,
@@ -647,9 +670,7 @@ export function registerDiscountsAutomatedSuite(
         ['null', null],
         ['empty object', {}],
         ['empty productIds', { productIds: [] }],
-        ['productIds with one', { productIds: ['ok'] }],
         ['priceIds with one', { priceIds: ['ok'] }],
-        ['both productIds and priceIds', { productIds: ['p1'], priceIds: ['pr1'] }],
       ])('accepts restrictedTo (%s)', async (_label, value) => {
         const d = await provider.discounts.create({
           benefit: percent10,
@@ -659,6 +680,26 @@ export function registerDiscountsAutomatedSuite(
         track(d.id);
         expectIsDiscount(d);
         await harness.assertConsistency?.discount?.(d);
+      });
+
+      it('accepts restrictedTo with a real productId, and with both product + price scope', async () => {
+        const d1 = await provider.discounts.create({
+          benefit: percent10,
+          duration: once,
+          restrictedTo: { productIds: [fixtureProductId] },
+        });
+        track(d1.id);
+        expectIsDiscount(d1);
+        await harness.assertConsistency?.discount?.(d1);
+
+        const d2 = await provider.discounts.create({
+          benefit: percent10,
+          duration: once,
+          restrictedTo: { productIds: [fixtureProductId], priceIds: [fixturePriceId] },
+        });
+        track(d2.id);
+        expectIsDiscount(d2);
+        await harness.assertConsistency?.discount?.(d2);
       });
 
       it.each([
@@ -1378,6 +1419,19 @@ export function registerDiscountsAutomatedSuite(
           // Ignore cleanup failures.
         }
       }
+      // Fixture price (deactivate before product hard-delete) then product.
+      try {
+        await harness?.cleanupResource?.('price', fixturePriceId);
+      } catch {}
+      try {
+        await provider.prices.deactivate({ id: fixturePriceId });
+      } catch {}
+      try {
+        await harness?.cleanupResource?.('product', fixtureProductId);
+      } catch {}
+      try {
+        await provider.products.deactivate({ id: fixtureProductId });
+      } catch {}
       if (harness?.teardown) {
         try {
           await harness.teardown();

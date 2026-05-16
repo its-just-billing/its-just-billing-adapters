@@ -17,6 +17,17 @@ See [`docs/openapi/prices.json`](../../openapi/prices.json) → operation `price
 
 See [`docs/openapi/prices.json`](../../openapi/prices.json) → operation `prices.create` → response `200`.
 
+## Capability Matrix
+
+<!-- AUTO-GENERATED CAPABILITY MATRIX -->
+
+Behavior of `prices.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.
+
+| Capability | true / present | false / absent |
+| --- | --- | --- |
+| `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence. |
+| `features.priceLevelRecurrence` | Recurring price `kind` accepted; recurrence lives on the price. | Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`). |
+
 ## Errors
 
 _TODO: list the normalized errors this method can throw and when._

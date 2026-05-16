@@ -1,5 +1,37 @@
 import type { ProviderEventType } from './event.js';
+import type { RecurringInterval } from './price.js';
 import type { TaxCategory } from './tax-category.js';
+
+/**
+ * Structural / behavioral capability flags. Booleans (not a string→bool map)
+ * so TypeScript forces every adapter to declare each flag explicitly — a new
+ * provider can't silently inherit a default.
+ *
+ * The discriminator for whether a behavior is mimicked by the adapter or
+ * pushed out to the consumer via one of these flags is **round-trip cost**:
+ * the adapter mimics only what the provider enforces natively with zero extra
+ * round-trips. The moment honoring a behavior would cost N fetches, or the
+ * provider has no native mechanism, it becomes a flag and the consumer (which
+ * holds the data in its own persistence) enforces it.
+ */
+export interface ProviderFeatureFlags {
+  /**
+   * Adapter enforces price quantity constraints at checkout / subscription
+   * change. `false` → the constraint is still persisted on
+   * `ProviderPrice.quantity` and round-trips faithfully, but the adapter does
+   * not validate it at checkout (the consumer enforces it from persistence —
+   * avoiding an N+1 per-line-item price fetch).
+   */
+  readonly priceQuantityConstraints: boolean;
+  /** Recurrence lives on the price (Stripe, Paddle). */
+  readonly priceLevelRecurrence: boolean;
+  /** Recurrence lives on the product (Polar, future). */
+  readonly productLevelRecurrence: boolean;
+  /** Provider natively enforces product-scoped discount restriction. */
+  readonly discountProductRestrictions: boolean;
+  /** Provider natively enforces price-scoped discount restriction. */
+  readonly discountPriceRestrictions: boolean;
+}
 
 /**
  * Static per-provider capability inventory for cross-provider value-set gaps.
@@ -37,4 +69,13 @@ export interface ProviderCapabilities {
    * settings UIs ("which events can this account subscribe to?").
    */
   readonly webhookEventTypes: ReadonlySet<ProviderEventType>;
+  /**
+   * Trial billing-interval units the adapter can honor. Stripe accepts trials
+   * in days only, so it advertises `{ 'day', 'week' }` (week is exact in
+   * days); `month`/`year` have no fixed-day equivalent and are rejected via
+   * `ProviderNotSupportedError`. Pre-flight: `capabilities.trialUnits.has(u)`.
+   */
+  readonly trialUnits: ReadonlySet<RecurringInterval>;
+  /** Structural / behavioral feature flags. See {@link ProviderFeatureFlags}. */
+  readonly features: ProviderFeatureFlags;
 }

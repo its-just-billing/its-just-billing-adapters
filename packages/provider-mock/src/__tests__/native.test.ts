@@ -260,6 +260,7 @@ describe('checkout.createSession archived-customer rejection', () => {
     await expect(
       provider.checkout.createSession({
         lineItems: [{ priceId: price.id, quantity: 1 }],
+        mode: 'payment',
         successUrl: 'https://example.com/s',
         customerId: customer.id,
       }),
@@ -278,6 +279,7 @@ describe('checkout.createSession archived-customer rejection', () => {
     });
     const session = await provider.checkout.createSession({
       lineItems: [{ priceId: price.id, quantity: 1 }],
+      mode: 'payment',
       successUrl: 'https://example.com/s',
       customerId: customer.id,
     });
@@ -299,6 +301,7 @@ describe('checkout.createSession price activity validation', () => {
     await expect(
       provider.checkout.createSession({
         lineItems: [{ priceId: price.id, quantity: 1 }],
+        mode: 'payment',
         successUrl: 'https://example.com/s',
       }),
     ).rejects.toBeInstanceOf(ProviderConstraintError);
@@ -323,35 +326,17 @@ describe('checkout.createSession discount activity validation', () => {
     await expect(
       provider.checkout.createSession({
         lineItems: [{ priceId: price.id, quantity: 1 }],
+        mode: 'payment',
         successUrl: 'https://example.com/s',
         discount: { kind: 'discountId', discountId: discount.id },
       }),
     ).rejects.toBeInstanceOf(ProviderConstraintError);
   });
 
-  it('throws ProviderConstraintError when discount lookup by code resolves to an inactive discount', async () => {
-    const provider = createMockProvider();
-    const product = await provider.products.create({ name: 'p', taxCategory: 'saas' });
-    const price = await provider.prices.create({
-      productId: product.id,
-      currency: 'usd',
-      kind: 'one_time',
-      unitAmount: 1000,
-    });
-    const discount = await provider.discounts.create({
-      code: 'SUMMER10',
-      benefit: { kind: 'percent', percentOff: 10 },
-      duration: { kind: 'once' },
-    });
-    await provider.discounts.deactivate({ id: discount.id });
-    await expect(
-      provider.checkout.createSession({
-        lineItems: [{ priceId: price.id, quantity: 1 }],
-        successUrl: 'https://example.com/s',
-        discount: { kind: 'code', code: 'SUMMER10' },
-      }),
-    ).rejects.toBeInstanceOf(ProviderConstraintError);
-  });
+  // The `code` discount kind was removed from the checkout contract: checkout
+  // is a pure pass-through, and resolving a human code to its discount id is
+  // the consumer's job (it persists its own discounts). Only the `discountId`
+  // path remains, covered by the test above.
 });
 
 describe('checkout.createSession mixed-currency rejection', () => {
@@ -376,6 +361,7 @@ describe('checkout.createSession mixed-currency rejection', () => {
           { priceId: usd.id, quantity: 1 },
           { priceId: eur.id, quantity: 1 },
         ],
+        mode: 'payment',
         successUrl: 'https://example.com/s',
       }),
     ).rejects.toBeInstanceOf(ProviderConstraintError);
@@ -401,6 +387,7 @@ describe('checkout.createSession mixed-currency rejection', () => {
         { priceId: a.id, quantity: 1 },
         { priceId: b.id, quantity: 2 },
       ],
+      mode: 'payment',
       successUrl: 'https://example.com/s',
     });
     expect(session.lineItems.length).toBe(2);

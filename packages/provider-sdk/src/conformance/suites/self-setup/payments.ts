@@ -161,6 +161,7 @@ export function registerPaymentsSelfSetupSuite(
     }
     const session = await provider.checkout.createSession({
       lineItems: [{ priceId: price.id, quantity: 1 }],
+      mode: 'payment',
       successUrl: 'https://example.com/s',
       customerId: customer.id,
       ...(discount ? { discount: { kind: 'discountId', discountId: discount.id } } : {}),

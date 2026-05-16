@@ -17,6 +17,16 @@ See [`docs/openapi/subscriptions.json`](../../openapi/subscriptions.json) → op
 
 See [`docs/openapi/subscriptions.json`](../../openapi/subscriptions.json) → operation `subscriptions.change` → response `200`.
 
+## Capability Matrix
+
+<!-- AUTO-GENERATED CAPABILITY MATRIX -->
+
+Behavior of `subscriptions.change` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.
+
+| Capability | true / present | false / absent |
+| --- | --- | --- |
+| `features.priceQuantityConstraints` | Item `quantity` is enforced against the price quantity constraint. | Item `quantity` is not enforced against the price constraint — consumer-owned (the price is still validated for existence and recurring kind). |
+
 ## Errors
 
 _TODO: list the normalized errors this method can throw and when._

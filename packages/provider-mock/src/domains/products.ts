@@ -5,6 +5,7 @@ import {
   ProviderNotSupportedError,
   type ProviderProduct,
   Schemas,
+  assertFeatureEnabled,
   assertNoReservedKeys,
   stripReservedKeys,
   validate,
@@ -55,6 +56,16 @@ export function createProductsDomain(
           value: parsed.taxCategory,
           message: `mock does not support taxCategory=${parsed.taxCategory}`,
         });
+      }
+      // The mock models recurrence on the price (productLevelRecurrence ===
+      // false), matching Stripe/Paddle. Reject a product-level recurrence
+      // block explicitly so the contract is uniform across adapters.
+      if (parsed.recurrence !== undefined) {
+        assertFeatureEnabled(
+          capabilities.features.productLevelRecurrence,
+          'product.recurrence',
+          'products.create',
+        );
       }
       const now = new Date();
       const record: InternalProduct = {

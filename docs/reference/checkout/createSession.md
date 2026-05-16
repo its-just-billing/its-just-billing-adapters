@@ -17,6 +17,16 @@ See [`docs/openapi/checkout.json`](../../openapi/checkout.json) → operation `c
 
 See [`docs/openapi/checkout.json`](../../openapi/checkout.json) → operation `checkout.createSession` → response `200`.
 
+## Capability Matrix
+
+<!-- AUTO-GENERATED CAPABILITY MATRIX -->
+
+Behavior of `checkout.createSession` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.
+
+| Capability | true / present | false / absent |
+| --- | --- | --- |
+| `trialUnits` | `trial.unit` in the set is translated and passed to the provider. | `trial.unit` outside the set is rejected with `ProviderNotSupportedError` (422, feature `trial.unit`). |
+
 ## Errors
 
 _TODO: list the normalized errors this method can throw and when._

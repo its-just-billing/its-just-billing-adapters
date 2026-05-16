@@ -62,6 +62,18 @@ export function registerCapabilitiesAutomatedSuite(
     'billing_document.finalized',
   ];
 
+  /** All RecurringInterval enum values — kept in sync with `models/price.ts`. */
+  const ALL_TRIAL_UNITS: readonly string[] = ['day', 'week', 'month', 'year'];
+
+  /** The required ProviderFeatureFlags keys — kept in sync with `models/capabilities.ts`. */
+  const FEATURE_FLAG_KEYS: readonly string[] = [
+    'priceQuantityConstraints',
+    'priceLevelRecurrence',
+    'productLevelRecurrence',
+    'discountProductRestrictions',
+    'discountPriceRestrictions',
+  ];
+
   /** A representative slate of lowercase ISO-4217 currency codes. */
   const KNOWN_CURRENCIES: readonly string[] = [
     'usd',
@@ -162,6 +174,28 @@ export function registerCapabilitiesAutomatedSuite(
         for (const value of provider.capabilities.webhookEventTypes) {
           expect(typeof value).toBe('string');
           expect(valid.has(value as string)).toBe(true);
+        }
+      });
+
+      it('capabilities.trialUnits is a non-empty Set-like collection of known RecurringIntervals', () => {
+        const tu = provider.capabilities.trialUnits;
+        expect(isSetLike(tu)).toBe(true);
+        expect(tu.size).toBeGreaterThan(0);
+        const valid = new Set<string>(ALL_TRIAL_UNITS);
+        for (const value of tu) {
+          expect(typeof value).toBe('string');
+          expect(valid.has(value as string)).toBe(true);
+        }
+      });
+
+      it('capabilities.features declares every flag as an explicit boolean', () => {
+        const features = provider.capabilities.features;
+        expect(features).toBeDefined();
+        expect(typeof features).toBe('object');
+        expect(features).not.toBeNull();
+        const rec = features as unknown as Record<string, unknown>;
+        for (const key of FEATURE_FLAG_KEYS) {
+          expect(typeof rec[key]).toBe('boolean');
         }
       });
     });
