@@ -378,7 +378,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `subscriptions.list`. Not a real HTTP endpoint."
       }
     },
     "/subscriptions/get": {
@@ -442,7 +443,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `subscriptions.get`. Not a real HTTP endpoint."
       }
     },
     "/subscriptions/cancel": {
@@ -496,7 +498,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `subscriptions.cancel`. Not a real HTTP endpoint."
       }
     },
     "/subscriptions/change": {
@@ -513,7 +516,8 @@
                 "$ref": "#/components/schemas/SubscriptionsChangeInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -550,7 +554,18 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "features.priceQuantityConstraints",
+            "whenTrue": "Item `quantity` is enforced against the price quantity constraint.",
+            "whenFalse": "Item `quantity` is not enforced against the price constraint — consumer-owned (the price is still validated for existence and recurring kind).",
+            "affects": [
+              "#/components/schemas/SubscriptionsChangeInput"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `subscriptions.change`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `subscriptions.change` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.priceQuantityConstraints` | Item `quantity` is enforced against the price quantity constraint. | Item `quantity` is not enforced against the price constraint — consumer-owned (the price is still validated for existence and recurring kind). |\n"
       }
     },
     "/subscriptions/cancelScheduledChange": {
@@ -604,7 +619,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `subscriptions.cancelScheduledChange`. Not a real HTTP endpoint."
       }
     }
   },

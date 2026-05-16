@@ -326,7 +326,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `products.list`. Not a real HTTP endpoint."
       }
     },
     "/products/get": {
@@ -390,7 +391,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `products.get`. Not a real HTTP endpoint."
       }
     },
     "/products/create": {
@@ -407,7 +409,8 @@
                 "$ref": "#/components/schemas/ProductsCreateInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -444,7 +447,19 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "features.productLevelRecurrence",
+            "whenTrue": "`recurrence` block accepted and stored on the product.",
+            "whenFalse": "`recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.",
+            "affects": [
+              "#/components/schemas/ProductsCreateInput/properties/recurrence",
+              "#/components/schemas/ProviderProduct/properties/recurrence"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `products.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `products.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.productLevelRecurrence` | `recurrence` block accepted and stored on the product. | `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead. |\n"
       }
     },
     "/products/update": {
@@ -498,7 +513,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `products.update`. Not a real HTTP endpoint."
       }
     },
     "/products/deactivate": {
@@ -562,7 +578,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `products.deactivate`. Not a real HTTP endpoint."
       }
     },
     "/products/activate": {
@@ -626,7 +643,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `products.activate`. Not a real HTTP endpoint."
       }
     }
   },

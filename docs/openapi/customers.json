@@ -240,7 +240,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `customers.list`. Not a real HTTP endpoint."
       }
     },
     "/customers/get": {
@@ -304,7 +305,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `customers.get`. Not a real HTTP endpoint."
       }
     },
     "/customers/create": {
@@ -358,7 +360,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `customers.create`. Not a real HTTP endpoint."
       }
     },
     "/customers/update": {
@@ -412,7 +415,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `customers.update`. Not a real HTTP endpoint."
       }
     },
     "/customers/archive": {
@@ -476,7 +480,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `customers.archive`. Not a real HTTP endpoint."
       }
     }
   },

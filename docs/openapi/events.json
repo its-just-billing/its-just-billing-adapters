@@ -231,7 +231,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `events.list`. Not a real HTTP endpoint."
       }
     },
     "/events/get": {
@@ -295,7 +296,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `events.get`. Not a real HTTP endpoint."
       }
     }
   },

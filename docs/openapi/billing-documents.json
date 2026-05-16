@@ -238,7 +238,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `billing-documents.list`. Not a real HTTP endpoint."
       }
     },
     "/billing-documents/get": {
@@ -302,7 +303,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `billing-documents.get`. Not a real HTTP endpoint."
       }
     }
   },

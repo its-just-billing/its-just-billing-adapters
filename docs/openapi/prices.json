@@ -394,7 +394,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `prices.list`. Not a real HTTP endpoint."
       }
     },
     "/prices/get": {
@@ -565,7 +566,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `prices.get`. Not a real HTTP endpoint."
       }
     },
     "/prices/create": {
@@ -582,7 +584,8 @@
                 "$ref": "#/components/schemas/PricesCreateInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -619,7 +622,26 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "features.priceQuantityConstraints",
+            "whenTrue": "`quantity` constraint is enforced by the provider at checkout.",
+            "whenFalse": "`quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence.",
+            "affects": [
+              "#/components/schemas/PricesCreateInput/properties/quantity"
+            ]
+          },
+          {
+            "name": "features.priceLevelRecurrence",
+            "whenTrue": "Recurring price `kind` accepted; recurrence lives on the price.",
+            "whenFalse": "Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`).",
+            "affects": [
+              "#/components/schemas/PricesCreateInput"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `prices.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `prices.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence. |\n| `features.priceLevelRecurrence` | Recurring price `kind` accepted; recurrence lives on the price. | Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`). |\n"
       }
     },
     "/prices/update": {
@@ -636,7 +658,8 @@
                 "$ref": "#/components/schemas/PricesUpdateInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -673,7 +696,18 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "features.priceQuantityConstraints",
+            "whenTrue": "`quantity` constraint is enforced by the provider at checkout.",
+            "whenFalse": "`quantity` is still persisted and round-trips, but is not enforced at checkout by the adapter.",
+            "affects": [
+              "#/components/schemas/PricesUpdateInput/properties/quantity"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `prices.update`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `prices.update` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted and round-trips, but is not enforced at checkout by the adapter. |\n"
       }
     },
     "/prices/deactivate": {
@@ -844,7 +878,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `prices.deactivate`. Not a real HTTP endpoint."
       }
     },
     "/prices/activate": {
@@ -1015,7 +1050,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `prices.activate`. Not a real HTTP endpoint."
       }
     }
   },

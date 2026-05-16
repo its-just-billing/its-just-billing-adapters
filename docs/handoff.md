@@ -1371,6 +1371,33 @@ The seeded fixture product can't be deleted on Stripe (has prices), so it accumu
 
 ---
 
+## Capability profiles in generated docs
+
+The generated OpenAPI stays a single provider-agnostic contract. Capability
+conditioning is published as machine-readable context, not forked schemas:
+
+- Each capability-affected operation in `docs/openapi/<domain>.json` carries an
+  `x-capabilities` extension (`{name, whenTrue, whenFalse, affects?}`) and the
+  Capability Matrix folded into its `description`. Both are single-sourced from
+  `OPERATIONS[].capabilities` in `packages/provider-sdk/scripts/build-docs.ts`
+  and injected by `injectCapabilityExtensions`. `checkCapabilityExtensionDrift()`
+  fails the build if an `Op.capabilities` entry isn't reflected.
+- `docs/openapi/capability-profiles.json` resolves each flag + value-set
+  narrowing per provider. It is **merged** by `build-docs` from per-provider
+  fragments `docs/openapi/profiles/<id>.json`, which each adapter emits from its
+  real `*_CAPABILITIES` via `pnpm --filter @its-just-billing/provider-<id>
+  profile:emit` (script: `packages/provider-<id>/scripts/emit-capability-profile.ts`).
+- The SDK build script **must never import a provider** — it only reads/validates
+  fragments (`parseProfileFragment` in `src/capability-profile.ts`, the
+  single-sourced fragment shape). Root `docs:build` sequences
+  `turbo run profile:emit && turbo run docs:build`. A provider snapshot test
+  (`src/__tests__/capability-profile.test.ts`) fails if a committed fragment
+  drifts from live `*_CAPABILITIES`; re-run `profile:emit` and commit.
+- A consumer derives the effective per-provider shape from the shared schema +
+  profile (e.g. `valueSetNarrowing.trialUnits.perProvider`). Full per-provider
+  schema docs were deliberately not generated (contradicts the agnostic
+  contract; the profile gives the same information without forking schemas).
+
 ## Reference
 
 - Spec: [`../provider-system-v2.md`](../provider-system-v2.md)

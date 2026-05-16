@@ -33,7 +33,7 @@ A TypeScript SDK that normalizes Stripe, Paddle, and a reference mock provider b
 - **`docs/`** — handwritten REST-style reference pages and generated OpenAPI fragments.
 - **`provider-system-v2.md`** — the design spec the implementation is built against.
 
-The SDK is provider-agnostic. The same caller code works against any adapter that implements `BillingProvider`.
+The SDK is provider-agnostic. The same caller code works against any adapter that implements `BillingProvider`. Where a capability conditions an operation's input/output, that is published as machine-readable context — **not** as divergent per-provider schemas: each operation in `docs/openapi/*.json` carries an `x-capabilities` extension (plus the capability matrix in its `description`), and `docs/openapi/capability-profiles.json` resolves every flag and value-set narrowing per provider. The effective per-provider shape is *derived* from the one shared schema + that profile. Profiles are emitted by each adapter from its real `*_CAPABILITIES` (`pnpm profile:emit`, sequenced before `docs:build`); a provider snapshot test keeps each committed fragment honest.
 
 ---
 

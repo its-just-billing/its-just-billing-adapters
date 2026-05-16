@@ -15,7 +15,8 @@
     "test:conformance:automated": "turbo run test:conformance:automated",
     "test:conformance:semi-manual": "turbo run test:conformance:semi-manual",
     "test:conformance:self-setup": "turbo run test:conformance:self-setup",
-    "docs:build": "turbo run docs:build",
+    "profile:emit": "turbo run profile:emit",
+    "docs:build": "turbo run profile:emit && turbo run docs:build",
     "lint": "biome check .",
     "format": "biome format --write ."
   },

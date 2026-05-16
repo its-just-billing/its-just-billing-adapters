@@ -159,7 +159,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `payment-methods.list`. Not a real HTTP endpoint."
       }
     }
   },

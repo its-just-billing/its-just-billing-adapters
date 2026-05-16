@@ -1,0 +1,14 @@
+{
+  "providerId": "stripe",
+  "features": {
+    "priceQuantityConstraints": false,
+    "priceLevelRecurrence": true,
+    "productLevelRecurrence": false,
+    "discountProductRestrictions": true,
+    "discountPriceRestrictions": false
+  },
+  "trialUnits": [
+    "day",
+    "week"
+  ]
+}

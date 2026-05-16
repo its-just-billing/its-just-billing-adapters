@@ -120,7 +120,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `portal.createSession`. Not a real HTTP endpoint."
       }
     }
   },

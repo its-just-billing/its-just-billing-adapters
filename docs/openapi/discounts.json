@@ -451,7 +451,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `discounts.list`. Not a real HTTP endpoint."
       }
     },
     "/discounts/get": {
@@ -515,7 +516,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `discounts.get`. Not a real HTTP endpoint."
       }
     },
     "/discounts/create": {
@@ -532,7 +534,8 @@
                 "$ref": "#/components/schemas/DiscountsCreateInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -569,7 +572,26 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "features.discountProductRestrictions",
+            "whenTrue": "`restrictedTo.productIds` is enforced natively by the provider (e.g. Stripe `coupon.applies_to.products`), with no extra round-trips; product ids that do not exist are rejected by the provider.",
+            "whenFalse": "`restrictedTo.productIds` round-trips faithfully but is not enforced by the adapter — the consumer enforces it from its own persistence.",
+            "affects": [
+              "#/components/schemas/DiscountsCreateInput/properties/restrictedTo"
+            ]
+          },
+          {
+            "name": "features.discountPriceRestrictions",
+            "whenTrue": "`restrictedTo.priceIds` is enforced natively by the provider.",
+            "whenFalse": "`restrictedTo.priceIds` round-trips faithfully (no native price-scoped mechanism) but is not enforced by the adapter — the consumer enforces it from its own persistence.",
+            "affects": [
+              "#/components/schemas/DiscountsCreateInput/properties/restrictedTo"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `discounts.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `discounts.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.discountProductRestrictions` | `restrictedTo.productIds` is enforced natively by the provider (e.g. Stripe `coupon.applies_to.products`), with no extra round-trips; product ids that do not exist are rejected by the provider. | `restrictedTo.productIds` round-trips faithfully but is not enforced by the adapter — the consumer enforces it from its own persistence. |\n| `features.discountPriceRestrictions` | `restrictedTo.priceIds` is enforced natively by the provider. | `restrictedTo.priceIds` round-trips faithfully (no native price-scoped mechanism) but is not enforced by the adapter — the consumer enforces it from its own persistence. |\n"
       }
     },
     "/discounts/update": {
@@ -623,7 +645,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `discounts.update`. Not a real HTTP endpoint."
       }
     },
     "/discounts/deactivate": {
@@ -687,7 +710,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `discounts.deactivate`. Not a real HTTP endpoint."
       }
     },
     "/discounts/activate": {
@@ -751,7 +775,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `discounts.activate`. Not a real HTTP endpoint."
       }
     }
   },

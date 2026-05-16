@@ -304,7 +304,8 @@
                 "$ref": "#/components/schemas/CheckoutCreateSessionInput"
               }
             }
-          }
+          },
+          "description": "Request shape is capability-conditioned; see this operation's description and `x-capabilities`."
         },
         "responses": {
           "200": {
@@ -341,7 +342,18 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "x-capabilities": [
+          {
+            "name": "trialUnits",
+            "whenTrue": "`trial.unit` in the set is translated and passed to the provider.",
+            "whenFalse": "`trial.unit` outside the set is rejected with `ProviderNotSupportedError` (422, feature `trial.unit`).",
+            "affects": [
+              "#/components/schemas/CheckoutCreateSessionInput/properties/trial"
+            ]
+          }
+        ],
+        "description": "Normalized SDK method `checkout.createSession`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `checkout.createSession` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `trialUnits` | `trial.unit` in the set is translated and passed to the provider. | `trial.unit` outside the set is rejected with `ProviderNotSupportedError` (422, feature `trial.unit`). |\n"
       }
     },
     "/checkout/getSession": {
@@ -405,7 +417,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `checkout.getSession`. Not a real HTTP endpoint."
       }
     }
   },

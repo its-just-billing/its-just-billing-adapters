@@ -403,7 +403,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.listEndpoints`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/createEndpoint": {
@@ -457,7 +458,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.createEndpoint`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/updateEndpoint": {
@@ -511,7 +513,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.updateEndpoint`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/activateEndpoint": {
@@ -575,7 +578,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.activateEndpoint`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/deactivateEndpoint": {
@@ -639,7 +643,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.deactivateEndpoint`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/deleteEndpoint": {
@@ -701,7 +706,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.deleteEndpoint`. Not a real HTTP endpoint."
       }
     },
     "/webhooks/verify": {
@@ -755,7 +761,8 @@
           "503": {
             "description": "ProviderUnavailableError"
           }
-        }
+        },
+        "description": "Normalized SDK method `webhooks.verify`. Not a real HTTP endpoint."
       }
     }
   },

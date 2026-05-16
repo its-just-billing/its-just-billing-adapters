@@ -17,6 +17,15 @@ import { fileURLToPath } from 'node:url';
 import { OpenAPIRegistry, OpenApiGeneratorV31 } from '@asteasolutions/zod-to-openapi';
 import type { z } from 'zod';
 
+// SDK-internal imports only — `build-docs` must NEVER import a provider
+// adapter. Per-provider capability values come from provider-emitted fragments
+// read at build time; the fragment shape/validation is single-sourced here.
+import {
+  type ProviderProfileFragment,
+  TRIAL_UNIT_FULL_ENUM,
+  parseProfileFragment,
+} from '../src/capability-profile.js';
+import type { ProviderFeatureFlags } from '../src/models/capabilities.js';
 import * as BillingDocumentsSchemas from '../src/schemas/billing-documents/index.js';
 import * as CheckoutSchemas from '../src/schemas/checkout/index.js';
 import * as CustomersSchemas from '../src/schemas/customers/index.js';
@@ -46,6 +55,14 @@ type CapabilityEffect = {
   whenTrue: string;
   /** Behavior when the capability is absent/false. */
   whenFalse: string;
+  /**
+   * Optional JSON-pointer-ish strings into the operation's request/response
+   * components identifying the shape points this capability conditions.
+   * Surfaced verbatim in the operation's `x-capabilities[].affects`. Best
+   * effort and scoped to the operation — never written onto the shared
+   * `$ref` component itself (that would leak to every referrer).
+   */
+  affects?: string[];
 };
 
 type Op = {
@@ -115,6 +132,10 @@ const OPERATIONS: Op[] = [
         whenTrue: '`recurrence` block accepted and stored on the product.',
         whenFalse:
           '`recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.',
+        affects: [
+          '#/components/schemas/ProductsCreateInput/properties/recurrence',
+          '#/components/schemas/ProviderProduct/properties/recurrence',
+        ],
       },
     ],
   },
@@ -160,12 +181,14 @@ const OPERATIONS: Op[] = [
         whenTrue: '`quantity` constraint is enforced by the provider at checkout.',
         whenFalse:
           '`quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence.',
+        affects: ['#/components/schemas/PricesCreateInput/properties/quantity'],
       },
       {
         name: 'features.priceLevelRecurrence',
         whenTrue: 'Recurring price `kind` accepted; recurrence lives on the price.',
         whenFalse:
           'Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`).',
+        affects: ['#/components/schemas/PricesCreateInput'],
       },
     ],
   },
@@ -180,6 +203,7 @@ const OPERATIONS: Op[] = [
         whenTrue: '`quantity` constraint is enforced by the provider at checkout.',
         whenFalse:
           '`quantity` is still persisted and round-trips, but is not enforced at checkout by the adapter.',
+        affects: ['#/components/schemas/PricesUpdateInput/properties/quantity'],
       },
     ],
   },
@@ -225,6 +249,7 @@ const OPERATIONS: Op[] = [
         whenTrue: 'Item `quantity` is enforced against the price quantity constraint.',
         whenFalse:
           'Item `quantity` is not enforced against the price constraint — consumer-owned (the price is still validated for existence and recurring kind).',
+        affects: ['#/components/schemas/SubscriptionsChangeInput'],
       },
     ],
   },
@@ -246,6 +271,7 @@ const OPERATIONS: Op[] = [
         whenTrue: '`trial.unit` in the set is translated and passed to the provider.',
         whenFalse:
           '`trial.unit` outside the set is rejected with `ProviderNotSupportedError` (422, feature `trial.unit`).',
+        affects: ['#/components/schemas/CheckoutCreateSessionInput/properties/trial'],
       },
     ],
   },
@@ -286,6 +312,23 @@ const OPERATIONS: Op[] = [
     method: 'create',
     input: DiscountsSchemas.DiscountsCreateInputSchema,
     output: DiscountsSchemas.DiscountsCreateOutputSchema,
+    capabilities: [
+      {
+        name: 'features.discountProductRestrictions',
+        whenTrue:
+          '`restrictedTo.productIds` is enforced natively by the provider (e.g. Stripe `coupon.applies_to.products`), with no extra round-trips; product ids that do not exist are rejected by the provider.',
+        whenFalse:
+          '`restrictedTo.productIds` round-trips faithfully but is not enforced by the adapter — the consumer enforces it from its own persistence.',
+        affects: ['#/components/schemas/DiscountsCreateInput/properties/restrictedTo'],
+      },
+      {
+        name: 'features.discountPriceRestrictions',
+        whenTrue: '`restrictedTo.priceIds` is enforced natively by the provider.',
+        whenFalse:
+          '`restrictedTo.priceIds` round-trips faithfully (no native price-scoped mechanism) but is not enforced by the adapter — the consumer enforces it from its own persistence.',
+        affects: ['#/components/schemas/DiscountsCreateInput/properties/restrictedTo'],
+      },
+    ],
   },
   {
     domain: 'discounts',
@@ -477,6 +520,53 @@ ${rows}
 `;
 }
 
+type OpenApiOperationLike = {
+  description?: string;
+  requestBody?: { description?: string };
+  [k: string]: unknown;
+};
+type OpenApiDocLike = {
+  paths?: Record<string, Record<string, OpenApiOperationLike>>;
+};
+
+/**
+ * Post-process a generated domain document, mutating it in place to carry
+ * capability context:
+ *
+ *  - every operation gets a `description` (so stock Swagger UI / Redoc render
+ *    something), and capability-affected operations append the existing
+ *    `renderCapabilityMatrix(op)` — the single prose source — so the matrix
+ *    table shows inline;
+ *  - capability-affected operations get a machine-readable `x-capabilities`
+ *    extension, single-sourced from `op.capabilities`;
+ *  - the shared `$ref` components are NOT touched — annotating a component
+ *    would leak to every operation that references it. Scoping lives in the
+ *    operation-level array (`affects` JSON pointers) + prose.
+ */
+function injectCapabilityExtensions(doc: unknown, ops: Op[]): void {
+  const d = doc as OpenApiDocLike;
+  for (const op of ops) {
+    const post = d.paths?.[`/${op.domain}/${op.method}`]?.post;
+    if (!post) continue;
+    const operationId = `${op.domain}.${op.method}`;
+    let description = `Normalized SDK method \`${operationId}\`. Not a real HTTP endpoint.`;
+    if (op.capabilities && op.capabilities.length > 0) {
+      description += `\n${renderCapabilityMatrix(op)}`;
+      post['x-capabilities'] = op.capabilities.map((c) => ({
+        name: c.name,
+        whenTrue: c.whenTrue,
+        whenFalse: c.whenFalse,
+        ...(c.affects ? { affects: c.affects } : {}),
+      }));
+      if (post.requestBody) {
+        post.requestBody.description =
+          "Request shape is capability-conditioned; see this operation's description and `x-capabilities`.";
+      }
+    }
+    post.description = description;
+  }
+}
+
 async function ensureReferenceStub(op: Op) {
   const { domain, method } = op;
   const path = resolve(docsRoot, 'reference', domain, `${method}.md`);
@@ -567,6 +657,99 @@ export async function checkCapabilityMatrixDrift(): Promise<string[]> {
   return offenders;
 }
 
+// ---------------------------------------------------------------------------
+// Per-provider capability profiles.
+//
+// Single source of truth = each provider's real `*_CAPABILITIES`. The SDK
+// build script must NEVER import a provider adapter (dependency direction +
+// conformance ethos), so each provider emits its own fragment
+// (`docs/openapi/profiles/<id>.json`) via its `profile:emit` script; this
+// script only reads, validates, and merges them. A provider-side snapshot
+// test keeps each committed fragment honest against live capabilities.
+// ---------------------------------------------------------------------------
+
+/** Providers expected to have emitted a profile fragment. Add 'paddle' when implemented. */
+const KNOWN_PROVIDER_IDS = ['stripe', 'mock'] as const;
+
+const profilesDir = resolve(docsRoot, 'openapi', 'profiles');
+
+/** Read + validate every known provider's fragment. Throws if one is missing. */
+async function readProviderProfiles(): Promise<Record<string, ProviderProfileFragment>> {
+  const out: Record<string, ProviderProfileFragment> = {};
+  for (const id of KNOWN_PROVIDER_IDS) {
+    const p = resolve(profilesDir, `${id}.json`);
+    if (!(await fileExists(p))) {
+      throw new Error(
+        `Missing capability profile fragment for "${id}" at docs/openapi/profiles/${id}.json — run \`pnpm --filter @its-just-billing/provider-${id} profile:emit\` first (root \`docs:build\` sequences this).`,
+      );
+    }
+    out[id] = parseProfileFragment(id, JSON.parse(await readFile(p, 'utf8')));
+  }
+  return out;
+}
+
+/** Build the aggregate capability-profiles.json from validated fragments. */
+function buildCapabilityProfileDoc(
+  profiles: Record<string, ProviderProfileFragment>,
+): unknown {
+  const providers: Record<string, { features: ProviderFeatureFlags; trialUnits: string[] }> = {};
+  const perProvider: Record<string, string[]> = {};
+  for (const [id, f] of Object.entries(profiles)) {
+    const trialUnits = [...f.trialUnits].sort();
+    providers[id] = { features: f.features, trialUnits };
+    perProvider[id] = trialUnits;
+  }
+  return {
+    $comment:
+      'Generated. Resolves each operation x-capabilities entry to concrete per-provider values. Emitted by each provider from its real *_CAPABILITIES; merged by provider-sdk build-docs. Do not hand-edit.',
+    providers,
+    valueSetNarrowing: {
+      trialUnits: {
+        schemaPointer: '#/components/schemas/TrialSpec/properties/unit',
+        fullEnum: [...TRIAL_UNIT_FULL_ENUM],
+        perProvider,
+      },
+    },
+  };
+}
+
+/**
+ * Sibling of `checkCapabilityMatrixDrift`, for the generated OpenAPI JSON:
+ * every `Op.capabilities` entry must be reflected in the written
+ * `x-capabilities` (same name set) and the operation `description` must carry
+ * the Capability Matrix heading. Returns offending operation ids.
+ */
+export async function checkCapabilityExtensionDrift(): Promise<string[]> {
+  const offenders: string[] = [];
+  const byDomain = new Map<string, Op[]>();
+  for (const op of OPERATIONS) {
+    if (!op.capabilities || op.capabilities.length === 0) continue;
+    byDomain.set(op.domain, [...(byDomain.get(op.domain) ?? []), op]);
+  }
+  for (const [domain, ops] of byDomain) {
+    const p = resolve(docsRoot, 'openapi', `${domain}.json`);
+    if (!(await fileExists(p))) {
+      for (const op of ops) offenders.push(`${op.domain}.${op.method}`);
+      continue;
+    }
+    const doc = JSON.parse(await readFile(p, 'utf8')) as OpenApiDocLike;
+    for (const op of ops) {
+      const id = `${op.domain}.${op.method}`;
+      const post = doc.paths?.[`/${op.domain}/${op.method}`]?.post;
+      const xcap = post?.['x-capabilities'] as { name?: string }[] | undefined;
+      const declared = new Set((op.capabilities ?? []).map((c) => c.name));
+      const emitted = new Set((xcap ?? []).map((c) => c.name));
+      const sameNames =
+        declared.size === emitted.size && [...declared].every((n) => emitted.has(n));
+      const hasMatrix =
+        typeof post?.description === 'string' &&
+        post.description.includes(CAPABILITY_MATRIX_HEADING);
+      if (!sameNames || !hasMatrix) offenders.push(id);
+    }
+  }
+  return offenders;
+}
+
 async function main() {
   const byDomain = new Map<string, Op[]>();
   for (const op of OPERATIONS) {
@@ -579,11 +762,21 @@ async function main() {
 
   for (const [domain, ops] of byDomain) {
     const doc = buildOpenApiDocForDomain(domain, ops);
+    injectCapabilityExtensions(doc, ops);
     const outPath = resolve(docsRoot, 'openapi', `${domain}.json`);
     await writeFile(outPath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
     for (const op of ops) await ensureReferenceStub(op);
     console.log(`✓ ${domain} (${ops.length} method${ops.length === 1 ? '' : 's'})`);
   }
+
+  // Merge provider-emitted capability profile fragments into the aggregate.
+  const profiles = await readProviderProfiles();
+  await writeFile(
+    resolve(docsRoot, 'openapi', 'capability-profiles.json'),
+    `${JSON.stringify(buildCapabilityProfileDoc(profiles), null, 2)}\n`,
+    'utf8',
+  );
+  console.log(`✓ capability-profiles.json (${Object.keys(profiles).length} providers)`);
 
   const drift = await checkDocDrift();
   if (drift.extra.length > 0) {
@@ -607,6 +800,16 @@ async function main() {
     process.exit(1);
   }
   console.log('✓ All capability-affected operations document a Capability Matrix.');
+
+  const extOffenders = await checkCapabilityExtensionDrift();
+  if (extOffenders.length > 0) {
+    console.error(
+      '✗ Capability extension drift: operations declare capabilities but their generated OpenAPI lacks a matching `x-capabilities` / matrix description:',
+    );
+    for (const id of extOffenders) console.error(`  - ${id}`);
+    process.exit(1);
+  }
+  console.log('✓ All capability-affected operations carry x-capabilities in the OpenAPI doc.');
 }
 
 main().catch((err) => {

@@ -38,6 +38,10 @@
       "outputs": [],
       "env": ["STRIPE_TEST_API_KEY"]
     },
+    "profile:emit": {
+      "dependsOn": ["^build"],
+      "outputs": ["../../docs/openapi/profiles/**"]
+    },
     "docs:build": {
       "dependsOn": ["^build"],
       "outputs": ["../../docs/openapi/**", "../../docs/reference/**"]
