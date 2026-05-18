@@ -37,35 +37,31 @@ export interface ProviderTestSetup {
 }
 
 /**
- * IDs of pre-provisioned, reusable resources for the `fixture` conformance
- * suite. The harness reads these from env vars or runtime config and exposes
- * them here; conformance tests assert each resource is in a clean starting
- * state, exercise it through reversible operations, then revert.
+ * The single pre-provisioned resource the `fixture` conformance suite needs:
+ * a subscription. This is the *only* resource the public SDK cannot bootstrap
+ * on its own — creating one requires a checkout/payment the SDK doesn't drive.
+ * Every other resource (products, prices, customers, discounts, webhook
+ * endpoints) is SDK-creatable, so those flows are exercised by the automated
+ * and self-setup suites with resources created at test time — they are NOT
+ * pre-provisioned here.
  *
- * If a field is absent, fixture tests requiring it skip via `it.skipIf`.
+ * Providers that CAN create a subscription programmatically (e.g. the mock,
+ * or Stripe via `setup.createSubscription` with a test card) exercise the
+ * subscription lifecycle through the self-setup suite and need not supply
+ * this. Providers that can't (Paddle/Polar — hosted checkout only) hand-
+ * provision one subscription and expose its id here.
+ *
+ * If `subscriptionId` is absent, the subscription fixture tests skip via
+ * `it.skipIf`.
  */
 export interface ProviderTestFixtures {
-  /** Active customer with no caller metadata. */
-  customerId?: string;
-  /** Active product, normal tax category, no caller metadata. */
-  productId?: string;
-  /** Active recurring price attached to `productId`. */
-  recurringPriceId?: string;
-  /** Active one-time price attached to `productId`. */
-  oneTimePriceId?: string;
   /**
-   * Active subscription whose status is `active` or `trialing`,
-   * `cancelAtPeriodEnd: false`, `pendingChange: null`. Tests revert any
-   * scheduled changes they introduce.
+   * A long-lived subscription in a clean starting state: status `active` or
+   * `trialing`, `cancelAtPeriodEnd: false`, `pendingChange: null`, exactly
+   * one item. Tests perform reversible operations (cancel/change at period
+   * end, quantity change) and revert any scheduled change they introduce.
    */
   subscriptionId?: string;
-  /** Active discount, no redemption-limit reached, `expiresAt: null`. */
-  discountId?: string;
-  /**
-   * Active webhook endpoint subscribed to a stable set of normalized event
-   * types. Update tests record the prior `eventTypes` and restore them.
-   */
-  webhookEndpointId?: string;
 }
 
 /**

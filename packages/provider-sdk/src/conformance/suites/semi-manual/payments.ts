@@ -145,6 +145,9 @@ export function registerPaymentsSemiManualSuite(
   describe(`payments [${label}]`, () => {
     let harness: ProviderTestHarness;
     let provider: BillingProvider;
+    // Scaffolding products tracked for archival in afterAll (Stripe can't
+    // delete products, so untracked ones accumulate as active residue).
+    const createdProductIds = new Set<string>();
 
     beforeAll(async () => {
       harness = await Promise.resolve(factory());
@@ -162,6 +165,7 @@ export function registerPaymentsSemiManualSuite(
             name: 'fixture',
             taxCategory: 'saas',
           });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const price = await provider.prices.create({
             productId: product.id,
@@ -233,11 +237,16 @@ export function registerPaymentsSemiManualSuite(
     });
 
     afterAll(async () => {
-      if (harness?.teardown) {
+      for (const id of createdProductIds) {
         try {
-          await harness.teardown();
+          await harness?.cleanupResource?.('product', id);
         } catch {
-          // Ignore teardown failures.
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
+        try {
+          await provider.products.deactivate({ id });
+        } catch {
+          // Ignore cleanup failures.
         }
       }
     });

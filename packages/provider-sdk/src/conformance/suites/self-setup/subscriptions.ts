@@ -15,6 +15,13 @@ export function registerSubscriptionsSelfSetupSuite(
   label: string,
   factory: () => ProviderTestHarness | Promise<ProviderTestHarness>,
 ): void {
+  // Every product this suite creates as scaffolding is tracked here so the
+  // afterAll can archive it. Products can't be deleted on most providers
+  // (Stripe), so without this they accumulate as active residue across runs.
+  // Declared at suite scope (not inside the describe) so the module-level
+  // `getSubscription` helper can record into it too.
+  const createdProductIds = new Set<string>();
+
   // ---------------------------------------------------------------------------
   // Helpers (inlined per the task instructions — no shared util library yet).
   // ---------------------------------------------------------------------------
@@ -132,6 +139,7 @@ export function registerSubscriptionsSelfSetupSuite(
       name: 'fixture',
       taxCategory: 'saas',
     });
+    createdProductIds.add(product.id);
     await harness.assertConsistency?.product?.(product);
     const price = await harness.provider.prices.create({
       productId: product.id,
@@ -264,6 +272,7 @@ export function registerSubscriptionsSelfSetupSuite(
           const sub = await getSubscription(harness);
           // Create a new price to swap to.
           const product = await provider.products.create({ name: 'swap', taxCategory: 'saas' });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
@@ -297,6 +306,7 @@ export function registerSubscriptionsSelfSetupSuite(
           const beforeItems = (before as ProviderSubscription).items;
 
           const product = await provider.products.create({ name: 'swap2', taxCategory: 'saas' });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
@@ -338,6 +348,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'pro-create',
             taxCategory: 'saas',
           });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
@@ -365,6 +376,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'pro-none',
             taxCategory: 'saas',
           });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
@@ -397,6 +409,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'sched-price',
             taxCategory: 'saas',
           });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const newPrice = await provider.prices.create({
             productId: product.id,
@@ -484,6 +497,7 @@ export function registerSubscriptionsSelfSetupSuite(
             name: 'trial-fixture',
             taxCategory: 'saas',
           });
+          createdProductIds.add(product.id);
           await harness.assertConsistency?.product?.(product);
           const price = await provider.prices.create({
             productId: product.id,
@@ -520,14 +534,23 @@ export function registerSubscriptionsSelfSetupSuite(
     });
 
     // -------------------------------------------------------------------------
-    // Teardown.
+    // Teardown — archive every scaffolding product this suite created. Try the
+    // harness hard-delete hook first (Stripe drops price-free products); fall
+    // through to the contract soft-delete so products that can't be deleted
+    // (they have an attached price) are at least left inactive, not active
+    // residue accumulating across runs.
     // -------------------------------------------------------------------------
     afterAll(async () => {
-      if (harness?.teardown) {
+      for (const id of createdProductIds) {
         try {
-          await harness.teardown();
+          await harness?.cleanupResource?.('product', id);
         } catch {
-          // Ignore teardown failures.
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
+        try {
+          await provider.products.deactivate({ id });
+        } catch {
+          // Ignore cleanup failures.
         }
       }
     });

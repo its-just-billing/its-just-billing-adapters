@@ -22,6 +22,14 @@ export function registerSubscriptionsFixtureSuite(
 ): void {
   describe(`subscriptions [${label}]`, () => {
     let harness!: ProviderTestHarness;
+    // The swap-target product+price in Scenario 2 is created at test time
+    // (every provider can create products/prices via the SDK — only the
+    // subscription itself can't be bootstrapped). Track BOTH so afterAll can
+    // archive them: on Stripe a price stays active independently of its
+    // product's active flag, so deactivating the product alone would leave an
+    // active price behind every run.
+    const createdProductIds = new Set<string>();
+    const createdPriceIds = new Set<string>();
 
     beforeAll(async () => {
       harness = await Promise.resolve(factory());
@@ -103,28 +111,40 @@ export function registerSubscriptionsFixtureSuite(
     // -------------------------------------------------------------------------
     // Scenario 2: change at_period_end to different price + cancelScheduledChange
     // -------------------------------------------------------------------------
-    lazySkipIf(() => !harness?.fixtures?.subscriptionId || !harness?.fixtures?.recurringPriceId)(
+    lazySkipIf(() => !harness?.fixtures?.subscriptionId)(
       "change({when:'at_period_end', priceId}) schedules price_change and cancelScheduledChange restores it",
       async () => {
         const id = requireFixture(harness.fixtures?.subscriptionId, 'subscriptionId');
-        const recurringPriceId = requireFixture(
-          harness.fixtures?.recurringPriceId,
-          'recurringPriceId',
-        );
 
-        // Pre-fetch: if the fixture is already on this price, there's nothing
-        // meaningful to swap to. Bail cleanly without entering withFixture.
+        // The swap target is created at test time — every provider can
+        // create products/prices via the SDK, so there's no need to
+        // pre-provision a second price. Mirror the subscription's current
+        // price (currency/interval) at a different amount so the change is
+        // accepted and is guaranteed to differ from the current price.
         const pre = await harness.provider.subscriptions.get({ id });
         if (!pre) {
           throw new Error(`subscription ${id} not found`);
         }
-        if (pre.items[0]?.priceId === recurringPriceId) {
-          // eslint-disable-next-line no-console
-          console.log(
-            `[fixture] subscription ${id} already on recurringPriceId ${recurringPriceId}; skipping price-change scenario`,
-          );
-          return;
+        const currentPriceId = nonNull(pre.items[0], 'subscription.items[0]').priceId;
+        const currentPrice = await harness.provider.prices.get({ id: currentPriceId });
+        if (!currentPrice) {
+          throw new Error(`subscription ${id} current price ${currentPriceId} not found`);
         }
+        const swapProduct = await harness.provider.products.create({
+          name: 'fixture-swap-target',
+          taxCategory: 'saas',
+        });
+        createdProductIds.add(swapProduct.id);
+        const swapPrice = await harness.provider.prices.create({
+          productId: swapProduct.id,
+          currency: currentPrice.currency,
+          kind: 'recurring',
+          unitAmount: currentPrice.unitAmount + 500,
+          interval: currentPrice.kind === 'recurring' ? currentPrice.interval : 'month',
+          intervalCount: currentPrice.kind === 'recurring' ? currentPrice.intervalCount : 1,
+        } as any);
+        createdPriceIds.add(swapPrice.id);
+        const recurringPriceId = swapPrice.id;
 
         let snapshot: ProviderSubscription | null = null;
 
@@ -287,12 +307,37 @@ export function registerSubscriptionsFixtureSuite(
         });
       },
     );
+
+    // Archive the swap-target product+price created at test time. Prices
+    // first: on Stripe a price can't be deleted and stays active regardless
+    // of its product's active flag, so it must be explicitly deactivated or
+    // it lingers active every run. Then the product (hard-delete via the
+    // harness hook when possible — Stripe drops price-free products — else
+    // soft-delete). The pre-provisioned subscription is intentionally left
+    // untouched (no teardown).
     afterAll(async () => {
-      if (harness?.teardown) {
+      for (const priceId of createdPriceIds) {
         try {
-          await harness.teardown();
+          await harness?.cleanupResource?.('price', priceId);
         } catch {
-          // Ignore teardown failures.
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
+        try {
+          await harness.provider.prices.deactivate({ id: priceId });
+        } catch {
+          // Ignore cleanup failures.
+        }
+      }
+      for (const productId of createdProductIds) {
+        try {
+          await harness?.cleanupResource?.('product', productId);
+        } catch {
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
+        try {
+          await harness.provider.products.deactivate({ id: productId });
+        } catch {
+          // Ignore cleanup failures.
         }
       }
     });

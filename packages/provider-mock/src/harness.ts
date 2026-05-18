@@ -6,8 +6,10 @@ import { type MockCheckoutPresentation, type MockProvider, createMockProvider } 
  *
  * The mock can self-create subscriptions and complete payments, so both
  * `setup.createSubscription` and `setup.completePayment` are provided. When
- * `seedFixtures` is true (the default) the harness pre-provisions one resource
- * per fixture key so the fixture suite exercises every gated test.
+ * `seedFixtures` is true (the default) the harness pre-provisions the one
+ * resource the fixture suite needs — a subscription — so the mock serves as
+ * the reference for the subscription fixture scenarios. (Every other resource
+ * is SDK-creatable and exercised by the automated/self-setup suites.)
  *
  * No `assertConsistency` is supplied: the in-memory store IS the source of
  * truth for the mock, so an independent verification path would only assert
@@ -50,27 +52,14 @@ export async function createMockHarness(options: MockHarnessOptions = {}): Promi
 async function seedAllFixtures(
   provider: MockProvider,
 ): Promise<NonNullable<MockHarness['fixtures']>> {
+  // The only pre-provisioned fixture resource is a subscription. The customer
+  // and price exist solely to create it (the SDK can't create a subscription
+  // without a checkout — that's the whole reason this is a fixture). The
+  // subscription fixture suite creates its own swap-target price at test time.
   const customer = await provider.customers.create({ email: 'fixture@mock.test' });
   const product = await provider.products.create({
     name: 'fixture-product',
     taxCategory: 'saas',
-    // Seed a non-null description so the combined name+description fixture
-    // scenario can round-trip. The contract says description is
-    // immutable-once-set, so the revert step requires it to start non-null.
-    description: 'conformance-fixture seed description',
-  });
-  // Two recurring prices: `recurringPrice` is the fixture-exposed swap target;
-  // `subscriptionPrice` is what the seeded subscription actually rides on. The
-  // subscriptions fixture suite skips the price-change scenario when the
-  // subscription is already on the swap target, so they must differ for the
-  // scenario to exercise the scheduled-price-change path.
-  const recurringPrice = await provider.prices.create({
-    productId: product.id,
-    currency: 'usd',
-    kind: 'recurring',
-    unitAmount: 999,
-    interval: 'month',
-    intervalCount: 1,
   });
   const subscriptionPrice = await provider.prices.create({
     productId: product.id,
@@ -80,31 +69,9 @@ async function seedAllFixtures(
     interval: 'month',
     intervalCount: 1,
   });
-  const oneTimePrice = await provider.prices.create({
-    productId: product.id,
-    currency: 'usd',
-    kind: 'one_time',
-    unitAmount: 4999,
-  });
   const subscription = provider.admin.createSubscription({
     customerId: customer.id,
     priceId: subscriptionPrice.id,
   });
-  const discount = await provider.discounts.create({
-    benefit: { kind: 'percent', percentOff: 10 },
-    duration: { kind: 'once' },
-  });
-  const webhook = await provider.webhooks.createEndpoint({
-    url: 'https://example.com/hook-fixture',
-    eventTypes: ['customer.created', 'subscription.updated'],
-  });
-  return {
-    customerId: customer.id,
-    productId: product.id,
-    recurringPriceId: recurringPrice.id,
-    oneTimePriceId: oneTimePrice.id,
-    subscriptionId: subscription.id,
-    discountId: discount.id,
-    webhookEndpointId: webhook.id,
-  };
+  return { subscriptionId: subscription.id };
 }

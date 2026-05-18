@@ -21,6 +21,12 @@ export function registerPaymentsSelfSetupSuite(
   label: string,
   factory: () => ProviderTestHarness | Promise<ProviderTestHarness>,
 ): void {
+  // Every product this suite creates as scaffolding is tracked here so the
+  // afterAll can archive it (products can't be deleted on Stripe, so without
+  // this they accumulate as active residue across runs). Suite-scoped so the
+  // module-level `buildPaymentFixture` helper can record into it.
+  const createdProductIds = new Set<string>();
+
   // ---------------------------------------------------------------------------
   // Helpers (inlined per the task instructions — no shared util library yet).
   // ---------------------------------------------------------------------------
@@ -143,6 +149,7 @@ export function registerPaymentsSelfSetupSuite(
     const customer = await provider.customers.create({});
     await harness.assertConsistency?.customer?.(customer);
     const product = await provider.products.create({ name: 'fixture', taxCategory: 'saas' });
+    createdProductIds.add(product.id);
     await harness.assertConsistency?.product?.(product);
     const price = await provider.prices.create({
       productId: product.id,
@@ -333,16 +340,22 @@ export function registerPaymentsSelfSetupSuite(
     });
 
     // -------------------------------------------------------------------------
-    // Teardown is left to the harness — no per-suite cleanup since the public
-    // SDK exposes no `payments.archive`, and customer/product/price cleanup is
-    // best-effort done by the harness.teardown when present.
+    // Teardown — the public SDK exposes no `payments.archive`, but the
+    // scaffolding products this suite creates CAN be archived; do so (hard
+    // delete via the harness hook when possible, else soft-delete) so they
+    // don't accumulate as active residue across runs.
     // -------------------------------------------------------------------------
     afterAll(async () => {
-      if (harness?.teardown) {
+      for (const id of createdProductIds) {
         try {
-          await harness.teardown();
+          await harness?.cleanupResource?.('product', id);
         } catch {
-          // Ignore teardown failures.
+          // Ignore hard-delete failures — soft-delete below is the fallback.
+        }
+        try {
+          await provider.products.deactivate({ id });
+        } catch {
+          // Ignore cleanup failures.
         }
       }
     });

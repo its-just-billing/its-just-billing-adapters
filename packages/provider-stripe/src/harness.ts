@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ProviderTestHarness } from '@its-just-billing/provider-sdk/conformance';
 import Stripe from 'stripe';
 import {
@@ -14,33 +17,26 @@ import { trialToStripeDays } from './trial-translation.js';
  * Required environment:
  *   STRIPE_TEST_API_KEY                   — Stripe test-mode secret key.
  *
- * Fixture provisioning:
+ * Fixture provisioning (only when `options.fixtures` is true):
  *
- *   By default the harness seeds its own fixtures by creating real Stripe
- *   resources at construction time and tearing them down on `teardown()`.
- *   Stripe can self-create everything the fixture suite needs, so manual
- *   pre-provisioning is unnecessary — the env-var fixtures below exist only
- *   as an override for callers who want to pin against pre-existing
- *   resources (e.g. for repeatable debugging against a known account).
+ *   The fixture suite's only pre-provisioned resource is a subscription — the
+ *   one thing the public SDK can't bootstrap (it needs a checkout/payment).
+ *   Stripe normally does NOT supply one: `setup.createSubscription` attaches a
+ *   test card and creates a real subscription at runtime, so Stripe's
+ *   subscription lifecycle is covered by the self-setup suite and the fixture
+ *   subscription tests skip.
  *
- *   When an env var is set, it overrides the corresponding seeded id and the
- *   seeded resource is left in place but is not exposed to the suite.
+ *   The override below exists only for pinning against a specific long-lived
+ *   Stripe subscription (repeatable debugging). Resolution order:
  *
- *   STRIPE_FIXTURE_CUSTOMER_ID            — active customer, no caller metadata.
- *   STRIPE_FIXTURE_PRODUCT_ID             — active product, normalized tax category.
- *   STRIPE_FIXTURE_RECURRING_PRICE_ID     — active recurring price on the product
- *                                            (must be a DIFFERENT recurring price
- *                                            from the one the seeded subscription
- *                                            rides on — see SEEDED_FIXTURE_NOTES).
- *   STRIPE_FIXTURE_ONE_TIME_PRICE_ID      — active one-time price on the product.
- *   STRIPE_FIXTURE_SUBSCRIPTION_ID        — active (or trialing) subscription on
- *                                            a DIFFERENT recurring price than
- *                                            STRIPE_FIXTURE_RECURRING_PRICE_ID
- *                                            (price-change scenario short-circuits
- *                                            when sub is already on the swap target).
- *   STRIPE_FIXTURE_DISCOUNT_ID            — active promotion code id (Stripe
- *                                            `promo_...`).
- *   STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID    — active webhook endpoint.
+ *     1. `STRIPE_FIXTURE_SUBSCRIPTION_ID` env var, else
+ *     2. a `subscriptionId` field in `fixture-resources.json` at the package
+ *        root (only if you choose to commit one), else
+ *     3. nothing → `harness.fixtures` is undefined → fixture suite skips.
+ *
+ *   There is no seeding, no teardown, and no other resource: products,
+ *   prices, customers, discounts and webhook endpoints are created at test
+ *   time by the automated/self-setup suites.
  */
 export type StripeHarness = ProviderTestHarness<StripeCheckoutPresentation> & {
   provider: StripeProvider;
@@ -50,11 +46,26 @@ export interface CreateStripeHarnessOptions {
   /** Override the API key (defaults to `process.env.STRIPE_TEST_API_KEY`). */
   apiKey?: string;
   /**
-   * Whether to provision fixtures by creating real Stripe resources at
-   * construction time. Defaults to `false`; set to `true` from the fixture
-   * spec file so the fixture conformance suite has everything it needs.
+   * Whether this harness backs the fixture conformance suite. When `true`,
+   * the harness resolves an optional pinned `subscriptionId` (env → config
+   * file). Defaults to `false`; the automated/self-setup specs leave it unset
+   * so they do zero config IO and expose no `fixtures`.
    */
-  seedFixtures?: boolean;
+  fixtures?: boolean;
+  /**
+   * Override the path to the optional subscription-pin config file.
+   * Defaults to `fixture-resources.json` at the provider-stripe package root.
+   */
+  fixtureConfigPath?: string;
+}
+
+/** The single pinnable fixture id — matches the SDK `ProviderTestFixtures`. */
+type FixtureConfig = Required<NonNullable<StripeHarness['fixtures']>>;
+
+function defaultFixtureConfigPath(): string {
+  // From src/harness.ts (vitest runs the TS source) or dist/harness.js, the
+  // parent of the module dir is the package root either way.
+  return resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixture-resources.json');
 }
 
 /**
@@ -100,13 +111,9 @@ export async function createStripeHarness(
   const stripe = new Stripe(apiKey);
   const provider = createStripeProvider({ apiKey, client: stripe });
 
-  let seeded: SeededFixtures | undefined;
-  if (options.seedFixtures) {
-    seeded = await seedAllFixtures(stripe);
-  }
-  // Env vars override seeded ids when set; this is the "pin to existing
-  // resources" path.
-  const fixtures = mergeFixtures(seeded, readFixturesFromEnv());
+  const fixtures = options.fixtures
+    ? resolveFixtures(options.fixtureConfigPath ?? defaultFixtureConfigPath())
+    : undefined;
 
   return {
     label: 'stripe',
@@ -141,7 +148,7 @@ export async function createStripeHarness(
       // session" API. Leaving it undefined means the semi-manual + self-setup
       // payment tests skip cleanly.
     },
-    ...(Object.keys(fixtures).length > 0 ? { fixtures } : {}),
+    ...(fixtures ? { fixtures } : {}),
     assertConsistency: {
       async customer(output) {
         const native = await stripe.customers.retrieve(output.id);
@@ -285,168 +292,44 @@ export async function createStripeHarness(
           return;
       }
     },
-    async teardown() {
-      if (seeded) await teardownSeededFixtures(stripe, seeded);
-    },
+    // No `teardown`: the fixture suite's only resource is an optional pinned
+    // subscription that is never created or destroyed here. Scaffolding the
+    // automated/self-setup suites create is archived by those suites.
   };
 }
 
 /**
- * Bundle of ids produced by {@link seedAllFixtures}. Internal state used at
- * teardown to drive cleanup; not the same shape as the SDK's
- * `ProviderTestFixtures` since this also tracks the underlying coupon id
- * (PromotionCode references a Coupon and we need to delete the Coupon to
- * cascade) and the subscription's price (which is intentionally different
- * from the swap-target `recurringPriceId`).
+ * Resolve an optional pinned subscription id for the fixture suite.
+ *
+ * Stripe normally returns `undefined` here (no env, no file) so the fixture
+ * subscription tests skip — Stripe's subscription lifecycle is covered by the
+ * self-setup suite via `setup.createSubscription`. The env/file override
+ * exists only to pin a specific long-lived subscription for debugging. There
+ * is no seeding and no other resource.
  */
-interface SeededFixtures {
-  customerId: string;
-  productId: string;
-  recurringPriceId: string;
-  subscriptionPriceId: string;
-  oneTimePriceId: string;
-  subscriptionId: string;
-  discountId: string;
-  couponId: string;
-  webhookEndpointId: string;
-}
+function resolveFixtures(configPath: string): FixtureConfig | undefined {
+  const fromEnv = process.env.STRIPE_FIXTURE_SUBSCRIPTION_ID;
+  if (fromEnv) return { subscriptionId: fromEnv };
 
-async function seedAllFixtures(stripe: Stripe): Promise<SeededFixtures> {
-  const tag = `conformance-${Date.now().toString(36)}`;
+  if (!existsSync(configPath)) return undefined;
 
-  const customer = await stripe.customers.create({
-    email: `fixture+${tag}@stripe.adapter.test`,
-    name: 'Stripe Conformance Fixture',
-  });
-
-  const product = await stripe.products.create({
-    name: `fixture-product-${tag}`,
-    // Aligned with the SDK's TaxCategory enum via TAX_CATEGORY_TO_STRIPE.saas.
-    tax_code: 'txcd_10103000',
-    // The fixture-suite combined name+description scenario requires a
-    // non-null starting description so its revert step can restore it; the
-    // SDK contract makes description immutable-once-set.
-    description: 'conformance-fixture seed description',
-  });
-
-  // Two recurring prices on the same product:
-  //   recurringPriceId: the swap-target exposed to fixture tests.
-  //   subscriptionPriceId: what the seeded subscription rides on.
-  // They MUST differ — the price-change fixture scenario short-circuits when
-  // the subscription is already on the swap target.
-  const recurringPrice = await stripe.prices.create({
-    product: product.id,
-    currency: 'usd',
-    unit_amount: 999,
-    recurring: { interval: 'month' },
-  });
-  const subscriptionPrice = await stripe.prices.create({
-    product: product.id,
-    currency: 'usd',
-    unit_amount: 1499,
-    recurring: { interval: 'month' },
-  });
-  const oneTimePrice = await stripe.prices.create({
-    product: product.id,
-    currency: 'usd',
-    unit_amount: 4999,
-  });
-
-  // Subscriptions need to be 'active' or 'trialing' per the fixture-suite
-  // contract. Attach a test card and let the first invoice settle so the
-  // seeded subscription lands `active` — the realistic flow, mirroring how
-  // `setup.createSubscription` now works (no year-long-trial side effect).
-  await attachTestPaymentMethod(stripe, customer.id);
-  const subscription = await stripe.subscriptions.create({
-    customer: customer.id,
-    items: [{ price: subscriptionPrice.id }],
-    payment_behavior: 'error_if_incomplete',
-  });
-
-  // Coupon + PromotionCode pair, matching the adapter's discounts model.
-  const coupon = await stripe.coupons.create({
-    percent_off: 10,
-    duration: 'once',
-  });
-  const promo = await stripe.promotionCodes.create({ coupon: coupon.id });
-
-  const webhook = await stripe.webhookEndpoints.create({
-    url: `https://example.com/hook-fixture-${tag}`,
-    enabled_events: ['customer.created', 'customer.subscription.updated'],
-  });
-
-  return {
-    customerId: customer.id,
-    productId: product.id,
-    recurringPriceId: recurringPrice.id,
-    subscriptionPriceId: subscriptionPrice.id,
-    oneTimePriceId: oneTimePrice.id,
-    subscriptionId: subscription.id,
-    discountId: promo.id,
-    couponId: coupon.id,
-    webhookEndpointId: webhook.id,
-  };
-}
-
-async function teardownSeededFixtures(stripe: Stripe, seeded: SeededFixtures): Promise<void> {
-  // Best-effort cleanup. Every step is independent — failures are swallowed
-  // so partial teardown still progresses the rest. Test mode forgives the
-  // odd orphan; the goal is to keep the account uncluttered between runs.
-  await safe(() => stripe.subscriptions.cancel(seeded.subscriptionId));
-  await safe(() => stripe.webhookEndpoints.del(seeded.webhookEndpointId));
-  // Deleting the coupon cascades to its promotion codes; the discount id
-  // (promo) does not need a separate delete call.
-  await safe(() => stripe.coupons.del(seeded.couponId));
-  // Stripe forbids deleting prices that have ever been used (and our
-  // subscription used the recurring one); deactivate instead.
-  await safe(() => stripe.prices.update(seeded.recurringPriceId, { active: false }));
-  await safe(() => stripe.prices.update(seeded.subscriptionPriceId, { active: false }));
-  await safe(() => stripe.prices.update(seeded.oneTimePriceId, { active: false }));
-  // Products with prices cannot be deleted; archive instead.
-  await safe(() => stripe.products.update(seeded.productId, { active: false }));
-  await safe(() => stripe.customers.del(seeded.customerId));
-}
-
-async function safe(fn: () => Promise<unknown>): Promise<void> {
+  let parsed: unknown;
   try {
-    await fn();
-  } catch {
-    // teardown is best-effort
+    parsed = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Fixture config "${configPath}" is not valid JSON (${message}). Fix it, or delete it.`,
+    );
   }
-}
-
-function mergeFixtures(
-  seeded: SeededFixtures | undefined,
-  override: NonNullable<StripeHarness['fixtures']>,
-): NonNullable<StripeHarness['fixtures']> {
-  const base: NonNullable<StripeHarness['fixtures']> = {};
-  if (seeded) {
-    base.customerId = seeded.customerId;
-    base.productId = seeded.productId;
-    base.recurringPriceId = seeded.recurringPriceId;
-    base.oneTimePriceId = seeded.oneTimePriceId;
-    base.subscriptionId = seeded.subscriptionId;
-    base.discountId = seeded.discountId;
-    base.webhookEndpointId = seeded.webhookEndpointId;
+  const subscriptionId =
+    typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>).subscriptionId
+      : undefined;
+  if (typeof subscriptionId === 'string' && subscriptionId.length > 0) {
+    return { subscriptionId };
   }
-  return { ...base, ...override };
-}
-
-function readFixturesFromEnv() {
-  const out: NonNullable<StripeHarness['fixtures']> = {};
-  const env = process.env;
-  if (env.STRIPE_FIXTURE_CUSTOMER_ID) out.customerId = env.STRIPE_FIXTURE_CUSTOMER_ID;
-  if (env.STRIPE_FIXTURE_PRODUCT_ID) out.productId = env.STRIPE_FIXTURE_PRODUCT_ID;
-  if (env.STRIPE_FIXTURE_RECURRING_PRICE_ID) {
-    out.recurringPriceId = env.STRIPE_FIXTURE_RECURRING_PRICE_ID;
-  }
-  if (env.STRIPE_FIXTURE_ONE_TIME_PRICE_ID) {
-    out.oneTimePriceId = env.STRIPE_FIXTURE_ONE_TIME_PRICE_ID;
-  }
-  if (env.STRIPE_FIXTURE_SUBSCRIPTION_ID) out.subscriptionId = env.STRIPE_FIXTURE_SUBSCRIPTION_ID;
-  if (env.STRIPE_FIXTURE_DISCOUNT_ID) out.discountId = env.STRIPE_FIXTURE_DISCOUNT_ID;
-  if (env.STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID) {
-    out.webhookEndpointId = env.STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID;
-  }
-  return out;
+  // A file with no usable subscriptionId is treated as "no pin" rather than
+  // an error — the only thing this file may carry now is a subscription id.
+  return undefined;
 }
