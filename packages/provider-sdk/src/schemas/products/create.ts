@@ -17,8 +17,8 @@ export const ProductsCreateInputSchema = z
     description: z.string().min(1).nullable().optional(),
     taxCategory: TaxCategorySchema,
     // Optional product-level recurrence. Accepted only by providers whose
-    // `capabilities.features.productLevelRecurrence` is true; a price-level
-    // provider (Stripe/Paddle) rejects it with ProviderNotSupportedError.
+    // `capabilities.recurrenceModel === 'product'`; a price-level provider
+    // (Stripe/Paddle) rejects it with ProviderNotSupportedError.
     recurrence: ProductRecurrenceSchema.optional(),
     metadata: MetadataSchema.optional(),
   })

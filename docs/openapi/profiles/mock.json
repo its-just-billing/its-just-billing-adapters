@@ -1,13 +1,18 @@
 {
   "providerId": "mock",
+  "recurrenceModel": "price",
   "features": {
     "priceQuantityConstraints": true,
-    "priceLevelRecurrence": true,
-    "productLevelRecurrence": false,
     "discountProductRestrictions": true,
     "discountPriceRestrictions": true
   },
   "trialUnits": [
+    "day",
+    "month",
+    "week",
+    "year"
+  ],
+  "recurringIntervals": [
     "day",
     "month",
     "week",

@@ -147,9 +147,9 @@ export function registerProductsAutomatedSuite(
         expect(p.updatedAt.getTime()).toBeGreaterThanOrEqual(p.createdAt.getTime());
       });
 
-      it('product-level recurrence is gated by capabilities.features.productLevelRecurrence', async () => {
+      it("product-level recurrence is gated by capabilities.recurrenceModel === 'product'", async () => {
         const recurrence = { interval: 'month' as const, intervalCount: 1 };
-        if (provider.capabilities.features.productLevelRecurrence) {
+        if (provider.capabilities.recurrenceModel === 'product') {
           const p = await provider.products.create({
             name: uniqueName(),
             taxCategory: 'saas',

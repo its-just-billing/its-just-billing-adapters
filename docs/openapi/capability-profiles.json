@@ -4,25 +4,35 @@
     "stripe": {
       "features": {
         "priceQuantityConstraints": false,
-        "priceLevelRecurrence": true,
-        "productLevelRecurrence": false,
         "discountProductRestrictions": true,
         "discountPriceRestrictions": false
       },
+      "recurrenceModel": "price",
       "trialUnits": [
         "day",
         "week"
+      ],
+      "recurringIntervals": [
+        "day",
+        "month",
+        "week",
+        "year"
       ]
     },
     "mock": {
       "features": {
         "priceQuantityConstraints": true,
-        "priceLevelRecurrence": true,
-        "productLevelRecurrence": false,
         "discountProductRestrictions": true,
         "discountPriceRestrictions": true
       },
+      "recurrenceModel": "price",
       "trialUnits": [
+        "day",
+        "month",
+        "week",
+        "year"
+      ],
+      "recurringIntervals": [
         "day",
         "month",
         "week",
@@ -43,6 +53,29 @@
         "stripe": [
           "day",
           "week"
+        ],
+        "mock": [
+          "day",
+          "month",
+          "week",
+          "year"
+        ]
+      }
+    },
+    "recurringIntervals": {
+      "schemaPointer": "#/components/schemas/PricesCreateInput (recurring `kind`) → `interval`",
+      "fullEnum": [
+        "day",
+        "week",
+        "month",
+        "year"
+      ],
+      "perProvider": {
+        "stripe": [
+          "day",
+          "month",
+          "week",
+          "year"
         ],
         "mock": [
           "day",

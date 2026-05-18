@@ -3,7 +3,11 @@ export * from './metadata.js';
 export * from './quantity.js';
 export * from './page.js';
 export * from './tax-category.js';
-export type { ProviderCapabilities, ProviderFeatureFlags } from './capabilities.js';
+export type {
+  ProviderCapabilities,
+  ProviderFeatureFlags,
+  RecurrenceModel,
+} from './capabilities.js';
 export * from './customer.js';
 export * from './product.js';
 export * from './price.js';

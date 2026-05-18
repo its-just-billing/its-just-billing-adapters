@@ -450,16 +450,16 @@
         },
         "x-capabilities": [
           {
-            "name": "features.productLevelRecurrence",
-            "whenTrue": "`recurrence` block accepted and stored on the product.",
-            "whenFalse": "`recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.",
+            "name": "recurrenceModel",
+            "whenTrue": "`'product'`: `recurrence` block accepted and stored on the product.",
+            "whenFalse": "`'price'`: `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.",
             "affects": [
               "#/components/schemas/ProductsCreateInput/properties/recurrence",
               "#/components/schemas/ProviderProduct/properties/recurrence"
             ]
           }
         ],
-        "description": "Normalized SDK method `products.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `products.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.productLevelRecurrence` | `recurrence` block accepted and stored on the product. | `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead. |\n"
+        "description": "Normalized SDK method `products.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `products.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `recurrenceModel` | `'product'`: `recurrence` block accepted and stored on the product. | `'price'`: `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead. |\n"
       }
     },
     "/products/update": {

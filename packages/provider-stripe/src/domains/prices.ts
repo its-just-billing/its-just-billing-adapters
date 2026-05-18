@@ -5,6 +5,8 @@ import {
   ProviderNotSupportedError,
   RESERVED_METADATA_KEYS,
   Schemas,
+  assertCapabilityValueSupported,
+  assertFeatureEnabled,
   assertNoReservedKeys,
   defaultQuantityFor,
   encodeQuantityToMetadata,
@@ -59,6 +61,22 @@ export function createPricesDomain(
           value: parsed.currency,
           message: `Stripe does not support currency=${parsed.currency}`,
         });
+      }
+      if (parsed.kind === 'recurring') {
+        // Reject a recurring price unless this provider models recurrence on
+        // the price (Stripe is `'price'`, so this passes).
+        assertFeatureEnabled(
+          capabilities.recurrenceModel === 'price',
+          'price.recurrence',
+          'prices.create',
+        );
+        // Reject a recurring interval the provider can't honor.
+        assertCapabilityValueSupported(
+          capabilities.recurringIntervals,
+          parsed.interval,
+          'price.interval',
+          'prices.create',
+        );
       }
       const quantity = parsed.quantity ?? defaultQuantityFor(parsed.kind);
       const metadata: Stripe.MetadataParam = {

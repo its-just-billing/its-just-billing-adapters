@@ -26,7 +26,8 @@ Behavior of `prices.create` by provider capability — pre-flight via `provider.
 | Capability | true / present | false / absent |
 | --- | --- | --- |
 | `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence. |
-| `features.priceLevelRecurrence` | Recurring price `kind` accepted; recurrence lives on the price. | Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`). |
+| `recurrenceModel` | `'price'`: recurring price `kind` accepted; recurrence lives on the price. | `'product'`: recurring price `kind` rejected (422, feature `price.recurrence`); recurrence lives on the product (`products.create` `recurrence`). |
+| `recurringIntervals` | Recurring `interval` in the set is accepted. | Recurring `interval` outside the set is rejected with `ProviderNotSupportedError` (422, feature `price.interval`). |
 
 ## Errors
 

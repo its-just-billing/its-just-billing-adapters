@@ -57,12 +57,12 @@ export function createProductsDomain(
           message: `mock does not support taxCategory=${parsed.taxCategory}`,
         });
       }
-      // The mock models recurrence on the price (productLevelRecurrence ===
-      // false), matching Stripe/Paddle. Reject a product-level recurrence
-      // block explicitly so the contract is uniform across adapters.
+      // The mock models recurrence on the price (recurrenceModel === 'price'),
+      // matching Stripe/Paddle. Reject a product-level recurrence block
+      // explicitly so the contract is uniform across adapters.
       if (parsed.recurrence !== undefined) {
         assertFeatureEnabled(
-          capabilities.features.productLevelRecurrence,
+          capabilities.recurrenceModel === 'product',
           'product.recurrence',
           'products.create',
         );

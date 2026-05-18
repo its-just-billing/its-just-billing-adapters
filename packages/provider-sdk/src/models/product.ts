@@ -6,10 +6,10 @@ import { TaxCategoryOutputSchema } from './tax-category.js';
 /**
  * Billing recurrence expressed on the *product*. Only meaningful for
  * providers whose model attaches recurrence to the product rather than the
- * price (Polar). Providers with price-level recurrence
- * (`capabilities.features.priceLevelRecurrence`) leave this `null` and carry
- * recurrence on `ProviderPrice` instead. Shape mirrors the recurring price
- * kind so a consumer reads one concept regardless of provider.
+ * price (Polar). Providers whose `capabilities.recurrenceModel` is `'price'`
+ * leave this `null` and carry recurrence on `ProviderPrice` instead. Shape
+ * mirrors the recurring price kind so a consumer reads one concept regardless
+ * of provider.
  */
 export const ProductRecurrenceSchema = z
   .object({

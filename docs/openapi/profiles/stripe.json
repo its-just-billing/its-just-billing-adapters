@@ -1,14 +1,19 @@
 {
   "providerId": "stripe",
+  "recurrenceModel": "price",
   "features": {
     "priceQuantityConstraints": false,
-    "priceLevelRecurrence": true,
-    "productLevelRecurrence": false,
     "discountProductRestrictions": true,
     "discountPriceRestrictions": false
   },
   "trialUnits": [
     "day",
     "week"
+  ],
+  "recurringIntervals": [
+    "day",
+    "month",
+    "week",
+    "year"
   ]
 }

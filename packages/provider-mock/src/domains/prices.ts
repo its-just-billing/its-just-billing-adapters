@@ -5,6 +5,8 @@ import {
   ProviderNotSupportedError,
   type ProviderPrice,
   Schemas,
+  assertCapabilityValueSupported,
+  assertFeatureEnabled,
   assertNoReservedKeys,
   defaultQuantityFor,
   stripReservedKeys,
@@ -69,6 +71,19 @@ export function createPricesDomain(state: MockState, capabilities: ProviderCapab
         throw new ProviderNotFoundError({
           message: `Product ${parsed.productId} not found`,
         });
+      }
+      if (parsed.kind === 'recurring') {
+        assertFeatureEnabled(
+          capabilities.recurrenceModel === 'price',
+          'price.recurrence',
+          'prices.create',
+        );
+        assertCapabilityValueSupported(
+          capabilities.recurringIntervals,
+          parsed.interval,
+          'price.interval',
+          'prices.create',
+        );
       }
       const now = new Date();
       const spec: InternalPrice['spec'] =

@@ -128,10 +128,11 @@ const OPERATIONS: Op[] = [
     output: ProductsSchemas.ProductsCreateOutputSchema,
     capabilities: [
       {
-        name: 'features.productLevelRecurrence',
-        whenTrue: '`recurrence` block accepted and stored on the product.',
+        name: 'recurrenceModel',
+        whenTrue:
+          "`'product'`: `recurrence` block accepted and stored on the product.",
         whenFalse:
-          '`recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.',
+          "`'price'`: `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead.",
         affects: [
           '#/components/schemas/ProductsCreateInput/properties/recurrence',
           '#/components/schemas/ProviderProduct/properties/recurrence',
@@ -184,10 +185,18 @@ const OPERATIONS: Op[] = [
         affects: ['#/components/schemas/PricesCreateInput/properties/quantity'],
       },
       {
-        name: 'features.priceLevelRecurrence',
-        whenTrue: 'Recurring price `kind` accepted; recurrence lives on the price.',
+        name: 'recurrenceModel',
+        whenTrue:
+          "`'price'`: recurring price `kind` accepted; recurrence lives on the price.",
         whenFalse:
-          'Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`).',
+          "`'product'`: recurring price `kind` rejected (422, feature `price.recurrence`); recurrence lives on the product (`products.create` `recurrence`).",
+        affects: ['#/components/schemas/PricesCreateInput'],
+      },
+      {
+        name: 'recurringIntervals',
+        whenTrue: 'Recurring `interval` in the set is accepted.',
+        whenFalse:
+          'Recurring `interval` outside the set is rejected with `ProviderNotSupportedError` (422, feature `price.interval`).',
         affects: ['#/components/schemas/PricesCreateInput'],
       },
     ],
@@ -692,12 +701,28 @@ async function readProviderProfiles(): Promise<Record<string, ProviderProfileFra
 function buildCapabilityProfileDoc(
   profiles: Record<string, ProviderProfileFragment>,
 ): unknown {
-  const providers: Record<string, { features: ProviderFeatureFlags; trialUnits: string[] }> = {};
-  const perProvider: Record<string, string[]> = {};
+  const providers: Record<
+    string,
+    {
+      features: ProviderFeatureFlags;
+      recurrenceModel: string;
+      trialUnits: string[];
+      recurringIntervals: string[];
+    }
+  > = {};
+  const trialPerProvider: Record<string, string[]> = {};
+  const recurringPerProvider: Record<string, string[]> = {};
   for (const [id, f] of Object.entries(profiles)) {
     const trialUnits = [...f.trialUnits].sort();
-    providers[id] = { features: f.features, trialUnits };
-    perProvider[id] = trialUnits;
+    const recurringIntervals = [...f.recurringIntervals].sort();
+    providers[id] = {
+      features: f.features,
+      recurrenceModel: f.recurrenceModel,
+      trialUnits,
+      recurringIntervals,
+    };
+    trialPerProvider[id] = trialUnits;
+    recurringPerProvider[id] = recurringIntervals;
   }
   return {
     $comment:
@@ -707,7 +732,12 @@ function buildCapabilityProfileDoc(
       trialUnits: {
         schemaPointer: '#/components/schemas/TrialSpec/properties/unit',
         fullEnum: [...TRIAL_UNIT_FULL_ENUM],
-        perProvider,
+        perProvider: trialPerProvider,
+      },
+      recurringIntervals: {
+        schemaPointer: '#/components/schemas/PricesCreateInput (recurring `kind`) → `interval`',
+        fullEnum: [...TRIAL_UNIT_FULL_ENUM],
+        perProvider: recurringPerProvider,
       },
     },
   };

@@ -68,11 +68,11 @@ export function registerCapabilitiesAutomatedSuite(
   /** The required ProviderFeatureFlags keys — kept in sync with `models/capabilities.ts`. */
   const FEATURE_FLAG_KEYS: readonly string[] = [
     'priceQuantityConstraints',
-    'priceLevelRecurrence',
-    'productLevelRecurrence',
     'discountProductRestrictions',
     'discountPriceRestrictions',
   ];
+
+  const RECURRENCE_MODELS: readonly string[] = ['price', 'product'];
 
   /** A representative slate of lowercase ISO-4217 currency codes. */
   const KNOWN_CURRENCIES: readonly string[] = [
@@ -186,6 +186,21 @@ export function registerCapabilitiesAutomatedSuite(
           expect(typeof value).toBe('string');
           expect(valid.has(value as string)).toBe(true);
         }
+      });
+
+      it('capabilities.recurringIntervals is a non-empty Set-like collection of known RecurringIntervals', () => {
+        const ri = provider.capabilities.recurringIntervals;
+        expect(isSetLike(ri)).toBe(true);
+        expect(ri.size).toBeGreaterThan(0);
+        const valid = new Set<string>(ALL_TRIAL_UNITS);
+        for (const value of ri) {
+          expect(typeof value).toBe('string');
+          expect(valid.has(value as string)).toBe(true);
+        }
+      });
+
+      it("capabilities.recurrenceModel is exactly one of 'price' | 'product'", () => {
+        expect(RECURRENCE_MODELS).toContain(provider.capabilities.recurrenceModel);
       });
 
       it('capabilities.features declares every flag as an explicit boolean', () => {

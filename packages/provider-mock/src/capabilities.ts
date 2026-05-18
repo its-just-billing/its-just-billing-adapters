@@ -92,16 +92,22 @@ const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
   'year',
 ]);
 
+/** The mock accepts every normalized recurring interval. */
+const RECURRING_INTERVALS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
+  'day',
+  'week',
+  'month',
+  'year',
+]);
+
 /**
  * The mock turns on every behavioral flag it can so the conformance harness
- * exercises the *on* branches that Stripe (a price-level, day-only-trial,
- * no-price-restriction provider) leaves off. `productLevelRecurrence` stays
- * `false`: the mock models recurrence on the price like Stripe/Paddle.
+ * exercises the *on* branches that Stripe (a no-price-restriction provider)
+ * leaves off. `recurrenceModel` stays `'price'`: the mock models recurrence
+ * on the price like Stripe/Paddle.
  */
 const FEATURES: ProviderFeatureFlags = {
   priceQuantityConstraints: true,
-  priceLevelRecurrence: true,
-  productLevelRecurrence: false,
   discountProductRestrictions: true,
   discountPriceRestrictions: true,
 };
@@ -111,5 +117,7 @@ export const MOCK_CAPABILITIES: ProviderCapabilities = {
   currencies: CURRENCIES,
   webhookEventTypes: WEBHOOK_EVENT_TYPES,
   trialUnits: TRIAL_UNITS,
+  recurringIntervals: RECURRING_INTERVALS,
+  recurrenceModel: 'price',
   features: FEATURES,
 };

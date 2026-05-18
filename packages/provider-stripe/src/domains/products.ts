@@ -59,12 +59,12 @@ export function createProductsDomain(
           message: `Stripe does not support taxCategory=${parsed.taxCategory}`,
         });
       }
-      // Stripe models recurrence on the Price, not the Product. Reject a
-      // product-level recurrence block explicitly rather than silently
-      // dropping it (capabilities.features.productLevelRecurrence === false).
+      // Reject a product-level recurrence block unless this provider models
+      // recurrence on the product. Stripe is `'price'`, so this rejects
+      // explicitly rather than silently dropping it.
       if (parsed.recurrence !== undefined) {
         assertFeatureEnabled(
-          capabilities.features.productLevelRecurrence,
+          capabilities.recurrenceModel === 'product',
           'product.recurrence',
           'products.create',
         );

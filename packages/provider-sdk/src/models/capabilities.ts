@@ -3,6 +3,20 @@ import type { RecurringInterval } from './price.js';
 import type { TaxCategory } from './tax-category.js';
 
 /**
+ * Where billing recurrence lives in a provider's model. Mutually exclusive —
+ * a single discriminated value, not two booleans, so illegal states ("both"
+ * / "neither") are unrepresentable.
+ *
+ *  - `'price'`  — recurrence is a property of the price (Stripe, Paddle).
+ *    `prices.create` accepts the recurring `kind`; `products.create` rejects a
+ *    `recurrence` block.
+ *  - `'product'` — recurrence is a property of the product (Polar, future).
+ *    `products.create` accepts a `recurrence` block; `prices.create` rejects
+ *    the recurring `kind`.
+ */
+export type RecurrenceModel = 'price' | 'product';
+
+/**
  * Structural / behavioral capability flags. Booleans (not a string→bool map)
  * so TypeScript forces every adapter to declare each flag explicitly — a new
  * provider can't silently inherit a default.
@@ -23,10 +37,6 @@ export interface ProviderFeatureFlags {
    * avoiding an N+1 per-line-item price fetch).
    */
   readonly priceQuantityConstraints: boolean;
-  /** Recurrence lives on the price (Stripe, Paddle). */
-  readonly priceLevelRecurrence: boolean;
-  /** Recurrence lives on the product (Polar, future). */
-  readonly productLevelRecurrence: boolean;
   /** Provider natively enforces product-scoped discount restriction. */
   readonly discountProductRestrictions: boolean;
   /** Provider natively enforces price-scoped discount restriction. */
@@ -76,6 +86,21 @@ export interface ProviderCapabilities {
    * `ProviderNotSupportedError`. Pre-flight: `capabilities.trialUnits.has(u)`.
    */
   readonly trialUnits: ReadonlySet<RecurringInterval>;
+  /**
+   * Recurring billing intervals the adapter accepts on a recurring price
+   * (symmetric to {@link trialUnits}). A recurring `prices.create` with an
+   * interval outside this set is rejected with `ProviderNotSupportedError`
+   * (422, feature `price.interval`). Pre-flight:
+   * `capabilities.recurringIntervals.has(interval)`.
+   */
+  readonly recurringIntervals: ReadonlySet<RecurringInterval>;
+  /**
+   * Where recurrence lives in this provider's model. See
+   * {@link RecurrenceModel}. Replaces the former
+   * `features.priceLevelRecurrence` / `features.productLevelRecurrence`
+   * boolean pair (mutually exclusive — one discriminated value).
+   */
+  readonly recurrenceModel: RecurrenceModel;
   /** Structural / behavioral feature flags. See {@link ProviderFeatureFlags}. */
   readonly features: ProviderFeatureFlags;
 }

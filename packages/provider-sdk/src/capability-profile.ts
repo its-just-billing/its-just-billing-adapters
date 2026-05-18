@@ -1,4 +1,8 @@
-import type { ProviderCapabilities, ProviderFeatureFlags } from './models/capabilities.js';
+import type {
+  ProviderCapabilities,
+  ProviderFeatureFlags,
+  RecurrenceModel,
+} from './models/capabilities.js';
 import { type RecurringInterval, RecurringIntervalSchema } from './models/price.js';
 
 /**
@@ -12,16 +16,19 @@ import { type RecurringInterval, RecurringIntervalSchema } from './models/price.
  * `docs/openapi/capability-profiles.json`).
  *
  * Only the *shape-conditioning* capabilities are included: `features` (the
- * structural flags) and `trialUnits` (value-set narrowing of
- * `TrialSpec.unit`). currencies / taxCategories / webhookEventTypes are large
- * enums that gate values without changing request/response *shape*, so they
- * are intentionally out of scope here.
+ * structural flags), `recurrenceModel` (where recurrence lives), and the
+ * `trialUnits` / `recurringIntervals` value-set narrowings. currencies /
+ * taxCategories / webhookEventTypes are large enums that gate values without
+ * changing request/response *shape*, so they are intentionally out of scope.
  */
 export interface ProviderProfileFragment {
   readonly providerId: string;
   readonly features: ProviderFeatureFlags;
-  /** Sorted, de-duplicated subset of `RecurringInterval`. */
+  readonly recurrenceModel: RecurrenceModel;
+  /** Sorted subset of `RecurringInterval`. */
   readonly trialUnits: RecurringInterval[];
+  /** Sorted subset of `RecurringInterval`. */
+  readonly recurringIntervals: RecurringInterval[];
 }
 
 /**
@@ -31,8 +38,6 @@ export interface ProviderProfileFragment {
  */
 const FEATURE_FLAG_KEY_MAP: Record<keyof ProviderFeatureFlags, true> = {
   priceQuantityConstraints: true,
-  priceLevelRecurrence: true,
-  productLevelRecurrence: true,
   discountProductRestrictions: true,
   discountPriceRestrictions: true,
 };
@@ -43,6 +48,24 @@ export const FEATURE_FLAG_KEYS = Object.keys(
 
 export const TRIAL_UNIT_FULL_ENUM = RecurringIntervalSchema.options as readonly RecurringInterval[];
 
+const RECURRENCE_MODELS: readonly RecurrenceModel[] = ['price', 'product'];
+
+function assertIntervalSubset(
+  expectedProviderId: string,
+  field: string,
+  value: unknown,
+): RecurringInterval[] {
+  if (
+    !Array.isArray(value) ||
+    value.some((u) => !(TRIAL_UNIT_FULL_ENUM as string[]).includes(u as string))
+  ) {
+    throw new Error(
+      `capability profile fragment "${expectedProviderId}": ${field} must be a subset of RecurringInterval`,
+    );
+  }
+  return [...(value as RecurringInterval[])].sort();
+}
+
 /** Derive a provider's fragment from its declared capabilities. Pure. */
 export function buildProfileFragment(
   providerId: string,
@@ -50,18 +73,23 @@ export function buildProfileFragment(
 ): ProviderProfileFragment {
   const features = {} as Record<keyof ProviderFeatureFlags, boolean>;
   for (const k of FEATURE_FLAG_KEYS) features[k] = capabilities.features[k];
-  const trialUnits = [...capabilities.trialUnits].sort();
-  return { providerId, features: features as ProviderFeatureFlags, trialUnits };
+  return {
+    providerId,
+    features: features as ProviderFeatureFlags,
+    recurrenceModel: capabilities.recurrenceModel,
+    trialUnits: [...capabilities.trialUnits].sort(),
+    recurringIntervals: [...capabilities.recurringIntervals].sort(),
+  };
 }
 
 /** Canonical on-disk serialization (stable key order + trailing newline). */
 export function serializeFragment(fragment: ProviderProfileFragment): string {
   const ordered = {
     providerId: fragment.providerId,
-    features: Object.fromEntries(
-      FEATURE_FLAG_KEYS.map((k) => [k, fragment.features[k]]),
-    ),
+    recurrenceModel: fragment.recurrenceModel,
+    features: Object.fromEntries(FEATURE_FLAG_KEYS.map((k) => [k, fragment.features[k]])),
     trialUnits: [...fragment.trialUnits].sort(),
+    recurringIntervals: [...fragment.recurringIntervals].sort(),
   };
   return `${JSON.stringify(ordered, null, 2)}\n`;
 }
@@ -75,6 +103,11 @@ export function parseProfileFragment(
   if (!f || typeof f !== 'object' || f.providerId !== expectedProviderId) {
     throw new Error(
       `capability profile fragment "${expectedProviderId}": missing or mismatched providerId`,
+    );
+  }
+  if (!RECURRENCE_MODELS.includes(f.recurrenceModel as RecurrenceModel)) {
+    throw new Error(
+      `capability profile fragment "${expectedProviderId}": recurrenceModel must be 'price' | 'product'`,
     );
   }
   const feats = f.features as Record<string, unknown> | undefined;
@@ -94,17 +127,15 @@ export function parseProfileFragment(
       `capability profile fragment "${expectedProviderId}": unknown feature keys ${extra.join(', ')}`,
     );
   }
-  if (
-    !Array.isArray(f.trialUnits) ||
-    f.trialUnits.some((u) => !(TRIAL_UNIT_FULL_ENUM as string[]).includes(u as string))
-  ) {
-    throw new Error(
-      `capability profile fragment "${expectedProviderId}": trialUnits must be a subset of RecurringInterval`,
-    );
-  }
   return {
     providerId: expectedProviderId,
     features: feats as unknown as ProviderFeatureFlags,
-    trialUnits: [...(f.trialUnits as RecurringInterval[])].sort(),
+    recurrenceModel: f.recurrenceModel as RecurrenceModel,
+    trialUnits: assertIntervalSubset(expectedProviderId, 'trialUnits', f.trialUnits),
+    recurringIntervals: assertIntervalSubset(
+      expectedProviderId,
+      'recurringIntervals',
+      f.recurringIntervals,
+    ),
   };
 }

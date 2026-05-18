@@ -100,6 +100,14 @@ const WEBHOOK_EVENT_TYPES: ReadonlySet<ProviderEventType> = new Set<ProviderEven
  */
 const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>(['day', 'week']);
 
+/** Stripe accepts all four recurring intervals on a recurring price. */
+const RECURRING_INTERVALS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
+  'day',
+  'week',
+  'month',
+  'year',
+]);
+
 /**
  * Stripe behavioral flags.
  *
@@ -107,8 +115,6 @@ const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
  *   quantity constraint; enforcing it at checkout would cost an N+1
  *   per-line-item `prices.retrieve`. The constraint still round-trips on
  *   `ProviderPrice.quantity`; the consumer enforces it from persistence.
- * - `priceLevelRecurrence: true` / `productLevelRecurrence: false` — Stripe
- *   models recurrence on the Price.
  * - `discountProductRestrictions: true` — enforced natively via
  *   `coupon.applies_to.products` (zero extra round-trips).
  * - `discountPriceRestrictions: false` — Stripe has no native price-scoped
@@ -116,8 +122,6 @@ const TRIAL_UNITS: ReadonlySet<RecurringInterval> = new Set<RecurringInterval>([
  */
 const FEATURES: ProviderFeatureFlags = {
   priceQuantityConstraints: false,
-  priceLevelRecurrence: true,
-  productLevelRecurrence: false,
   discountProductRestrictions: true,
   discountPriceRestrictions: false,
 };
@@ -127,5 +131,8 @@ export const STRIPE_CAPABILITIES: ProviderCapabilities = {
   currencies: CURRENCIES,
   webhookEventTypes: WEBHOOK_EVENT_TYPES,
   trialUnits: TRIAL_UNITS,
+  recurringIntervals: RECURRING_INTERVALS,
+  // Stripe models recurrence on the Price.
+  recurrenceModel: 'price',
   features: FEATURES,
 };

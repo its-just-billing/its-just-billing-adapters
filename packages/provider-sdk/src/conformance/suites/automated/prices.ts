@@ -3,9 +3,15 @@ import {
   MetadataCollisionError,
   ProviderConstraintError,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   ProviderValidationError,
 } from '../../../errors/index.js';
-import type { BillingProvider, ProviderPrice, ProviderProduct } from '../../../index.js';
+import type {
+  BillingProvider,
+  ProviderPrice,
+  ProviderProduct,
+  RecurringInterval,
+} from '../../../index.js';
 import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
 import { nonNull } from '../../skip-if.js';
@@ -125,6 +131,36 @@ export function registerPricesAutomatedSuite(
       createdProductIds.add(id);
     }
 
+    /**
+     * Whether this provider can have a recurring *price* at all. Product-level
+     * recurrence providers reject `prices.create({kind:'recurring'})` by
+     * contract, so positive recurring-price cases early-return (the suite's
+     * skip idiom) on them rather than asserting a success that can't happen.
+     */
+    function recurringSupported(): boolean {
+      return (
+        provider.capabilities.recurrenceModel === 'price' &&
+        provider.capabilities.recurringIntervals.size > 0
+      );
+    }
+
+    /**
+     * An interval the provider actually accepts on a recurring price. Prefer
+     * `month` for stable assertions; otherwise the first declared interval.
+     * Only valid when `recurringSupported()` — callers must guard first.
+     */
+    function aRecurringInterval(): RecurringInterval {
+      const ri = provider.capabilities.recurringIntervals;
+      if (ri.has('month')) return 'month';
+      const first = [...ri][0];
+      if (first === undefined) {
+        throw new Error(
+          'aRecurringInterval() called without a supported interval — guard with recurringSupported()',
+        );
+      }
+      return first;
+    }
+
     // -------------------------------------------------------------------------
     // prices.create
     // -------------------------------------------------------------------------
@@ -151,7 +187,51 @@ export function registerPricesAutomatedSuite(
         expect(p.createdAt.getTime()).toBeLessThanOrEqual(p.updatedAt.getTime());
       });
 
+      it('recurring `interval` outside capabilities.recurringIntervals → ProviderNotSupportedError(422)', async () => {
+        const ALL = ['day', 'week', 'month', 'year'] as const;
+        const unsupported = ALL.find((u) => !provider.capabilities.recurringIntervals.has(u));
+        if (unsupported === undefined) return; // provider accepts all — nothing to exercise
+        const err = await provider.prices
+          .create({
+            productId: fixtureProduct.id,
+            currency: 'usd',
+            kind: 'recurring',
+            unitAmount: 999,
+            interval: unsupported,
+          } as any)
+          .then(
+            () => null,
+            (e: unknown) => e,
+          );
+        expect(err).toBeInstanceOf(ProviderNotSupportedError);
+        const e = err as ProviderNotSupportedError;
+        expect(e.status).toBe(422);
+        expect(e.code).toBe('not_supported');
+        expect(e.feature).toBe('price.interval');
+        expect(e.value).toBe(unsupported);
+      });
+
+      it("recurring price requires capabilities.recurrenceModel === 'price'", async () => {
+        if (provider.capabilities.recurrenceModel === 'price') return; // exercised by other tests
+        const err = await provider.prices
+          .create({
+            productId: fixtureProduct.id,
+            currency: 'usd',
+            kind: 'recurring',
+            unitAmount: 999,
+            interval: 'month',
+          } as any)
+          .then(
+            () => null,
+            (e: unknown) => e,
+          );
+        expect(err).toBeInstanceOf(ProviderNotSupportedError);
+        expect((err as ProviderNotSupportedError).feature).toBe('price.recurrence');
+      });
+
       it('creates a recurring price with default intervalCount=1 and fixed quantity', async () => {
+        if (!recurringSupported()) return;
+        const interval = aRecurringInterval();
         // intervalCount is intentionally omitted to test the default-of-1
         // behavior; the schema accepts it at runtime via the default.
         const p = await provider.prices.create({
@@ -159,14 +239,14 @@ export function registerPricesAutomatedSuite(
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 999,
-          interval: 'month',
+          interval,
         } as any);
         trackPrice(p.id);
         expectIsPrice(p);
         await harness.assertConsistency?.price?.(p);
         expect(p.kind).toBe('recurring');
         if (p.kind === 'recurring') {
-          expect(p.interval).toBe('month');
+          expect(p.interval).toBe(interval);
           expect(p.intervalCount).toBe(1);
           expect(p.unitAmount).toBe(999);
         }
@@ -174,12 +254,13 @@ export function registerPricesAutomatedSuite(
       });
 
       it('respects an explicit intervalCount on recurring', async () => {
+        if (!recurringSupported()) return;
         const p = await provider.prices.create({
           productId: fixtureProduct.id,
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 500,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 3,
         });
         trackPrice(p.id);
@@ -588,6 +669,7 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.list', () => {
       it('filters by productId; active filter excludes archived', async () => {
+        if (!recurringSupported()) return;
         const localProduct = await provider.products.create({
           name: 'fixture-list',
           taxCategory: 'saas',
@@ -608,7 +690,7 @@ export function registerPricesAutomatedSuite(
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 200,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 1,
         });
         trackPrice(b.id);
@@ -703,12 +785,13 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.update', () => {
       it('deactivate({id}) flips active and leaves immutable fields', async () => {
+        if (!recurringSupported()) return;
         const a = await provider.prices.create({
           productId: fixtureProduct.id,
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 1500,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 2,
         });
         trackPrice(a.id);
@@ -891,12 +974,13 @@ export function registerPricesAutomatedSuite(
         ['intervalCount', 7],
         ['productId', 'prod_something_else'],
       ])('does not silently mutate immutable field %s', async (field, badValue) => {
+        if (!recurringSupported()) return;
         const a = await provider.prices.create({
           productId: fixtureProduct.id,
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 1500,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 1,
         });
         trackPrice(a.id);
@@ -982,6 +1066,7 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.deactivate', () => {
       it('deactivates a price; returns record with active=false; immutable fields unchanged', async () => {
+        if (!recurringSupported()) return;
         const localProduct = await provider.products.create({
           name: 'fixture-deactivate',
           taxCategory: 'saas',
@@ -994,7 +1079,7 @@ export function registerPricesAutomatedSuite(
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 500,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 1,
         });
         trackPrice(a.id);
@@ -1095,12 +1180,13 @@ export function registerPricesAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('prices.activate', () => {
       it('activates a deactivated price; immutable fields preserved', async () => {
+        if (!recurringSupported()) return;
         const a = await provider.prices.create({
           productId: fixtureProduct.id,
           currency: 'usd',
           kind: 'recurring',
           unitAmount: 750,
-          interval: 'month',
+          interval: aRecurringInterval(),
           intervalCount: 1,
         });
         trackPrice(a.id);

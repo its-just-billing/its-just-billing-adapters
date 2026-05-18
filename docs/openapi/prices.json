@@ -633,15 +633,23 @@
             ]
           },
           {
-            "name": "features.priceLevelRecurrence",
-            "whenTrue": "Recurring price `kind` accepted; recurrence lives on the price.",
-            "whenFalse": "Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`).",
+            "name": "recurrenceModel",
+            "whenTrue": "`'price'`: recurring price `kind` accepted; recurrence lives on the price.",
+            "whenFalse": "`'product'`: recurring price `kind` rejected (422, feature `price.recurrence`); recurrence lives on the product (`products.create` `recurrence`).",
+            "affects": [
+              "#/components/schemas/PricesCreateInput"
+            ]
+          },
+          {
+            "name": "recurringIntervals",
+            "whenTrue": "Recurring `interval` in the set is accepted.",
+            "whenFalse": "Recurring `interval` outside the set is rejected with `ProviderNotSupportedError` (422, feature `price.interval`).",
             "affects": [
               "#/components/schemas/PricesCreateInput"
             ]
           }
         ],
-        "description": "Normalized SDK method `prices.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `prices.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence. |\n| `features.priceLevelRecurrence` | Recurring price `kind` accepted; recurrence lives on the price. | Recurring price `kind` rejected; recurrence lives on the product (`products.create` `recurrence`). |\n"
+        "description": "Normalized SDK method `prices.create`. Not a real HTTP endpoint.\n\n## Capability Matrix\n\n<!-- AUTO-GENERATED CAPABILITY MATRIX -->\n\nBehavior of `prices.create` by provider capability — pre-flight via `provider.capabilities`. When several capabilities affect this operation the rows together form the matrix to read for your provider's flags.\n\n| Capability | true / present | false / absent |\n| --- | --- | --- |\n| `features.priceQuantityConstraints` | `quantity` constraint is enforced by the provider at checkout. | `quantity` is still persisted on the price and round-trips, but the adapter does not enforce it at checkout — the consumer enforces it from its own persistence. |\n| `recurrenceModel` | `'price'`: recurring price `kind` accepted; recurrence lives on the price. | `'product'`: recurring price `kind` rejected (422, feature `price.recurrence`); recurrence lives on the product (`products.create` `recurrence`). |\n| `recurringIntervals` | Recurring `interval` in the set is accepted. | Recurring `interval` outside the set is rejected with `ProviderNotSupportedError` (422, feature `price.interval`). |\n"
       }
     },
     "/prices/update": {

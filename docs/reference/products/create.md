@@ -25,7 +25,7 @@ Behavior of `products.create` by provider capability — pre-flight via `provide
 
 | Capability | true / present | false / absent |
 | --- | --- | --- |
-| `features.productLevelRecurrence` | `recurrence` block accepted and stored on the product. | `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead. |
+| `recurrenceModel` | `'product'`: `recurrence` block accepted and stored on the product. | `'price'`: `recurrence` rejected with `ProviderNotSupportedError` (422, `not_supported`, feature `product.recurrence`). Recurrence lives on the price instead. |
 
 ## Errors
 
