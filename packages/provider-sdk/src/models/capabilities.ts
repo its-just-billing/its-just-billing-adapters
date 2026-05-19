@@ -103,4 +103,64 @@ export interface ProviderCapabilities {
   readonly recurrenceModel: RecurrenceModel;
   /** Structural / behavioral feature flags. See {@link ProviderFeatureFlags}. */
   readonly features: ProviderFeatureFlags;
+  /**
+   * The provider mandates a non-null customer email (Paddle does; Stripe and
+   * the mock do not). When `true`, `customers.create`/`customers.update` with
+   * no email reject with `ProviderNotSupportedError(422)` rather than the
+   * adapter fabricating a placeholder — a fabricated email would be a real
+   * production footgun (receipts/dunning sent to a dead address). Absent or
+   * `false` ⇒ email is optional and a customer round-trips `email: null`.
+   *
+   * A value-gate like {@link currencies}/{@link taxCategories} — it does not
+   * change request/response *shape*, so by the same rule it is intentionally
+   * NOT part of the capability profile fragment.
+   */
+  readonly emailRequired?: boolean;
+  /**
+   * Constraint a provider enforces on a discount's redemption `code`. Paddle
+   * requires `^[A-Za-z0-9]{1,32}$`; Stripe/the mock are permissive (omit).
+   * The caller's code is sent to the provider verbatim — it must actually
+   * redeem there, so it is NOT round-tripped through metadata; a code outside
+   * this pattern rejects with `ProviderNotSupportedError(422)`. Pre-flight:
+   * `capabilities.discountCodePattern?.test(code)`.
+   *
+   * Also a value-gate — excluded from the capability profile fragment.
+   */
+  readonly discountCodePattern?: RegExp;
+  /**
+   * The provider cannot represent a *codeless* discount — every discount is
+   * assigned a redemption code (Paddle auto-generates one when the caller
+   * supplies none; Stripe/the mock create a code-less coupon, so they omit
+   * this). When `true`, a discount created without a caller code comes back
+   * with a provider-assigned, non-null `code` (a real, redeemable value —
+   * surfaced honestly, not hidden behind `null`); when absent/`false`, an
+   * omitted code round-trips as `code: null`. A value-gate — excluded from
+   * the capability profile fragment.
+   */
+  readonly discountCodeRequired?: boolean;
+  /**
+   * The provider can apply a checkout-session trial (`checkout.createSession`
+   * `{ trial }`). Absent/`true` ⇒ supported, and every unit in
+   * {@link trialUnits} must be honored by `checkout.createSession` (not
+   * rejected). `false` ⇒ the provider has no checkout-level trial mechanism
+   * (Paddle models trials on the *price*, not the checkout transaction), so
+   * `checkout.createSession({ trial })` rejects with
+   * `ProviderNotSupportedError(feature: 'checkout.trial')` — preflight with
+   * this flag, not {@link trialUnits}, before sending a checkout trial.
+   * {@link trialUnits} remains the (non-empty) trial-unit value set
+   * regardless. A value-gate — excluded from the capability profile fragment.
+   */
+  readonly checkoutTrialSupported?: boolean;
+  /**
+   * The provider can defer a `subscriptions.change` to period end
+   * (`when: 'at_period_end'`), surfacing it as a `pendingChange` until it
+   * takes effect. Absent/`true` ⇒ supported. `false` ⇒ the provider can only
+   * apply item/quantity changes immediately (Paddle: its `scheduled_change`
+   * is cancel/pause/resume only — there is no deferred item change), so
+   * `subscriptions.change({ when: 'at_period_end' })` rejects with
+   * `ProviderNotSupportedError(feature: 'subscription.change.when')` rather
+   * than silently applying the change immediately. A value-gate — excluded
+   * from the capability profile fragment.
+   */
+  readonly deferredSubscriptionChange?: boolean;
 }

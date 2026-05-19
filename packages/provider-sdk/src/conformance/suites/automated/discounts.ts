@@ -4,6 +4,7 @@ import {
   ProviderConflictError,
   ProviderConstraintError,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   ProviderValidationError,
 } from '../../../errors/index.js';
 import type {
@@ -14,7 +15,7 @@ import type {
 } from '../../../index.js';
 import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
-import { nonNull } from '../../skip-if.js';
+import { lazySkipIf, nonNull } from '../../skip-if.js';
 
 /**
  * Registers the discounts automated conformance suite. All scenarios in the
@@ -30,8 +31,17 @@ export function registerDiscountsAutomatedSuite(
   // library yet).
   // ---------------------------------------------------------------------------
 
+  // A unique code valid on every provider: uppercase alphanumeric, no
+  // separators, ≤ 32 chars. (Paddle enforces `^[A-Za-z0-9]{1,32}$`; Stripe
+  // and the mock are permissive supersets, so this is universally accepted —
+  // a code must actually redeem at the provider, so the suite generates one
+  // the provider can store rather than relying on adapter round-tripping.)
   function uniqueCode(prefix = 'CODE'): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+    const body = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    return `${prefix}${body}`
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 32);
   }
 
   /**
@@ -229,29 +239,71 @@ export function registerDiscountsAutomatedSuite(
         expectCreatedAtRecent(d);
       });
 
-      it('omitted code yields code=null', async () => {
-        const d = await provider.discounts.create({
-          benefit: { kind: 'percent', percentOff: 50 },
-          duration: { kind: 'forever' },
-        });
-        track(d.id);
-        expectIsDiscount(d);
-        await harness.assertConsistency?.discount?.(d);
-        expect(d.code).toBeNull();
-      });
+      // Codeless discounts: providers that can represent one (Stripe, mock)
+      // round-trip `code: null`. A provider that always assigns a code
+      // (Paddle, `discountCodeRequired`) instead surfaces the real
+      // provider-assigned code — asserted by the sibling, not faked to null.
+      lazySkipIf(() => provider.capabilities.discountCodeRequired === true)(
+        'omitted code yields code=null',
+        async () => {
+          const d = await provider.discounts.create({
+            benefit: { kind: 'percent', percentOff: 50 },
+            duration: { kind: 'forever' },
+          });
+          track(d.id);
+          expectIsDiscount(d);
+          await harness.assertConsistency?.discount?.(d);
+          expect(d.code).toBeNull();
+        },
+      );
 
-      it('explicit code=null is accepted; repeating duration round-trips', async () => {
-        const d = await provider.discounts.create({
-          code: null,
-          benefit: { kind: 'percent', percentOff: 25 },
-          duration: { kind: 'repeating', months: 3 },
-        });
-        track(d.id);
-        expectIsDiscount(d);
-        await harness.assertConsistency?.discount?.(d);
-        expect(d.code).toBeNull();
-        expect(d.duration).toEqual({ kind: 'repeating', months: 3 });
-      });
+      lazySkipIf(() => provider.capabilities.discountCodeRequired !== true)(
+        'omitted code yields a provider-assigned non-null code when discountCodeRequired',
+        async () => {
+          const d = await provider.discounts.create({
+            benefit: { kind: 'percent', percentOff: 50 },
+            duration: { kind: 'forever' },
+          });
+          track(d.id);
+          expectIsDiscount(d);
+          await harness.assertConsistency?.discount?.(d);
+          expect(typeof d.code).toBe('string');
+          expect((d.code as string).length).toBeGreaterThan(0);
+        },
+      );
+
+      lazySkipIf(() => provider.capabilities.discountCodeRequired === true)(
+        'explicit code=null is accepted; repeating duration round-trips',
+        async () => {
+          const d = await provider.discounts.create({
+            code: null,
+            benefit: { kind: 'percent', percentOff: 25 },
+            duration: { kind: 'repeating', months: 3 },
+          });
+          track(d.id);
+          expectIsDiscount(d);
+          await harness.assertConsistency?.discount?.(d);
+          expect(d.code).toBeNull();
+          expect(d.duration).toEqual({ kind: 'repeating', months: 3 });
+        },
+      );
+
+      lazySkipIf(() => provider.capabilities.discountCodeRequired !== true)(
+        'explicit code=null still yields a non-null code when discountCodeRequired; repeating duration round-trips',
+        async () => {
+          const d = await provider.discounts.create({
+            code: null,
+            benefit: { kind: 'percent', percentOff: 25 },
+            duration: { kind: 'repeating', months: 3 },
+          });
+          track(d.id);
+          expectIsDiscount(d);
+          await harness.assertConsistency?.discount?.(d);
+          expect(typeof d.code).toBe('string');
+          expect((d.code as string).length).toBeGreaterThan(0);
+          expect(d.duration).toEqual({ kind: 'repeating', months: 3 });
+        },
+      );
 
       it('amount benefit round-trips', async () => {
         const d = await provider.discounts.create({
@@ -805,6 +857,20 @@ export function registerDiscountsAutomatedSuite(
         expect(err).toBeInstanceOf(ProviderConflictError);
         expect((err as ProviderConflictError).status).toBe(409);
       });
+
+      // When the provider constrains discount-code shape (Paddle:
+      // `^[A-Za-z0-9]{1,32}$`), a code outside it must reject — not be
+      // silently round-tripped through metadata (which would never redeem at
+      // the provider). Skipped for providers with no code constraint.
+      lazySkipIf(() => provider.capabilities.discountCodePattern === undefined)(
+        'rejects a code violating capabilities.discountCodePattern with ProviderNotSupportedError',
+        async () => {
+          const bad = `bad code-${Date.now()}-with_sep!`; // contains non-alphanumerics
+          await expect(
+            provider.discounts.create({ code: bad, benefit: percent10, duration: once }),
+          ).rejects.toBeInstanceOf(ProviderNotSupportedError);
+        },
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -823,19 +889,40 @@ export function registerDiscountsAutomatedSuite(
         expect(withoutRaw(nonNull(got, 'got'))).toEqual(withoutRaw(d));
       });
 
-      it('created with code=null has code=null on read', async () => {
-        const d = await provider.discounts.create({
-          code: null,
-          benefit: percent10,
-          duration: once,
-        });
-        track(d.id);
-        await harness.assertConsistency?.discount?.(d);
-        const got = await provider.discounts.get({ id: d.id });
-        expect(got).not.toBeNull();
-        expectIsDiscount(got);
-        expect(got.code).toBeNull();
-      });
+      lazySkipIf(() => provider.capabilities.discountCodeRequired === true)(
+        'created with code=null has code=null on read',
+        async () => {
+          const d = await provider.discounts.create({
+            code: null,
+            benefit: percent10,
+            duration: once,
+          });
+          track(d.id);
+          await harness.assertConsistency?.discount?.(d);
+          const got = await provider.discounts.get({ id: d.id });
+          expect(got).not.toBeNull();
+          expectIsDiscount(got);
+          expect(got.code).toBeNull();
+        },
+      );
+
+      lazySkipIf(() => provider.capabilities.discountCodeRequired !== true)(
+        'created with code=null has a stable non-null code on read when discountCodeRequired',
+        async () => {
+          const d = await provider.discounts.create({
+            code: null,
+            benefit: percent10,
+            duration: once,
+          });
+          track(d.id);
+          await harness.assertConsistency?.discount?.(d);
+          const got = await provider.discounts.get({ id: d.id });
+          expect(got).not.toBeNull();
+          expectIsDiscount(got);
+          expect(typeof (got as ProviderDiscount).code).toBe('string');
+          expect((got as ProviderDiscount).code).toBe(d.code);
+        },
+      );
 
       it('created without restrictedTo has restrictedTo=null', async () => {
         const d = await provider.discounts.create({

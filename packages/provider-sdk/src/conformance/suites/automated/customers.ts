@@ -2,12 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   MetadataCollisionError,
   ProviderNotFoundError,
+  ProviderNotSupportedError,
   ProviderValidationError,
 } from '../../../errors/index.js';
 import type { BillingProvider, ProviderCustomer } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
-import { nonNull } from '../../skip-if.js';
+import { lazySkipIf, nonNull } from '../../skip-if.js';
 
 /**
  * Registers the customers automated conformance suite. All scenarios in the
@@ -95,16 +97,34 @@ export function registerCustomersAutomatedSuite(
     // customers.create
     // -------------------------------------------------------------------------
     describe('customers.create', () => {
-      it('returns a ProviderCustomer with sensible defaults for create({})', async () => {
-        const c = await provider.customers.create({});
-        track(c.id);
-        expectIsCustomer(c);
-        await harness.assertConsistency?.customer?.(c);
-        expect(c.email).toBeNull();
-        expect(c.name).toBeNull();
-        expect(c.metadata).toEqual({});
-        expectCreatedAtRecent(c);
-      });
+      // Email-optional providers (Stripe, mock): create({}) round-trips
+      // `email: null`. Skipped for email-mandatory providers (Paddle), which
+      // exercise the rejection contract below instead.
+      lazySkipIf(() => provider.capabilities.emailRequired === true)(
+        'returns a ProviderCustomer with sensible defaults for create({})',
+        async () => {
+          const c = await provider.customers.create({});
+          track(c.id);
+          expectIsCustomer(c);
+          await harness.assertConsistency?.customer?.(c);
+          expect(c.email).toBeNull();
+          expect(c.name).toBeNull();
+          expect(c.metadata).toEqual({});
+          expectCreatedAtRecent(c);
+        },
+      );
+
+      // Email-mandatory providers (Paddle): create({}) with no email must
+      // reject — the adapter must NOT fabricate a placeholder address.
+      // Skipped for email-optional providers.
+      lazySkipIf(() => provider.capabilities.emailRequired !== true)(
+        'create({}) rejects with ProviderNotSupportedError when emailRequired',
+        async () => {
+          await expect(provider.customers.create({})).rejects.toBeInstanceOf(
+            ProviderNotSupportedError,
+          );
+        },
+      );
 
       it('round-trips email/name/metadata on create', async () => {
         const email = uniqueEmail();
@@ -121,8 +141,8 @@ export function registerCustomersAutomatedSuite(
       });
 
       it('distinct create calls produce distinct ids', async () => {
-        const a = await provider.customers.create({});
-        const b = await provider.customers.create({});
+        const a = await createConformanceCustomer(provider);
+        const b = await createConformanceCustomer(provider);
         track(a.id);
         track(b.id);
         await harness.assertConsistency?.customer?.(a);
@@ -401,16 +421,32 @@ export function registerCustomersAutomatedSuite(
         expect(u.createdAt.getTime()).toBe(c.createdAt.getTime());
       });
 
-      it('update({id, email: null}) clears the email', async () => {
-        const c = await provider.customers.create({ email: uniqueEmail(), name: 'Clear' });
-        track(c.id);
-        await harness.assertConsistency?.customer?.(c);
-        const u = await provider.customers.update({ id: c.id, email: null });
-        expectIsCustomer(u);
-        await harness.assertConsistency?.customer?.(u);
-        expect(u.email).toBeNull();
-        expect(u.name).toBe('Clear');
-      });
+      // Clearing email is only meaningful where email is optional. For an
+      // email-mandatory provider, clearing it must reject (not fabricate).
+      lazySkipIf(() => provider.capabilities.emailRequired === true)(
+        'update({id, email: null}) clears the email',
+        async () => {
+          const c = await provider.customers.create({ email: uniqueEmail(), name: 'Clear' });
+          track(c.id);
+          await harness.assertConsistency?.customer?.(c);
+          const u = await provider.customers.update({ id: c.id, email: null });
+          expectIsCustomer(u);
+          await harness.assertConsistency?.customer?.(u);
+          expect(u.email).toBeNull();
+          expect(u.name).toBe('Clear');
+        },
+      );
+
+      lazySkipIf(() => provider.capabilities.emailRequired !== true)(
+        'update({id, email: null}) rejects with ProviderNotSupportedError when emailRequired',
+        async () => {
+          const c = await createConformanceCustomer(provider, { name: 'Clear' });
+          track(c.id);
+          await expect(provider.customers.update({ id: c.id, email: null })).rejects.toBeInstanceOf(
+            ProviderNotSupportedError,
+          );
+        },
+      );
 
       it('update({id, metadata}) REPLACES metadata (does not merge)', async () => {
         const c = await provider.customers.create({

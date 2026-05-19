@@ -18,25 +18,38 @@
         "STRIPE_FIXTURE_SUBSCRIPTION_ID",
         "STRIPE_FIXTURE_DISCOUNT_ID",
         "STRIPE_FIXTURE_WEBHOOK_ENDPOINT_ID",
+        "PADDLE_TEST_API_KEY",
+        "PADDLE_FIXTURE_SUBSCRIPTION_ID",
+        "PADDLE_HOSTED_CHECKOUT_URL",
         "INTERACTIVE"
       ]
     },
     "test:conformance:automated": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "env": ["STRIPE_TEST_API_KEY"]
+      "env": ["STRIPE_TEST_API_KEY", "PADDLE_TEST_API_KEY"]
     },
     "test:conformance:semi-manual": {
       "dependsOn": ["^build"],
       "outputs": [],
       "cache": false,
       "persistent": false,
-      "env": ["STRIPE_TEST_API_KEY", "INTERACTIVE"]
+      "env": [
+        "STRIPE_TEST_API_KEY",
+        "PADDLE_TEST_API_KEY",
+        "PADDLE_HOSTED_CHECKOUT_URL",
+        "INTERACTIVE"
+      ]
     },
     "test:conformance:self-setup": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "env": ["STRIPE_TEST_API_KEY"]
+      "env": ["STRIPE_TEST_API_KEY", "PADDLE_TEST_API_KEY"]
+    },
+    "test:conformance:fixture": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "env": ["STRIPE_TEST_API_KEY", "PADDLE_TEST_API_KEY", "PADDLE_FIXTURE_SUBSCRIPTION_ID"]
     },
     "profile:emit": {
       "dependsOn": ["^build"],

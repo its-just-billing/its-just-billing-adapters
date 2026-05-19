@@ -1,7 +1,7 @@
 import { MetadataSchema } from '../../models/metadata.js';
 import {
-  type ProviderProduct,
   ProductRecurrenceSchema,
+  type ProviderProduct,
   ProviderProductSchema,
 } from '../../models/product.js';
 import { TaxCategorySchema } from '../../models/tax-category.js';

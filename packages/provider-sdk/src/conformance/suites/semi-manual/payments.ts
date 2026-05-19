@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BillingProvider, ProviderPayment } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
+import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { awaitManualStep } from '../../prompts.js';
 import { lazySkipIf } from '../../skip-if.js';
 
 /**
@@ -159,7 +162,7 @@ export function registerPaymentsSemiManualSuite(
         'observes a payment via polling after manual checkout completion',
         async () => {
           // Build fixture.
-          const customer = await provider.customers.create({});
+          const customer = await createConformanceCustomer(provider);
           await harness.assertConsistency?.customer?.(customer);
           const product = await provider.products.create({
             name: 'fixture',
@@ -183,15 +186,18 @@ export function registerPaymentsSemiManualSuite(
 
           // The checkout session's presentation field carries the provider-
           // specific data the developer needs (hosted URL, embedded token,
-          // etc.). It is opaque to conformance, so we dump it in the prompt
-          // and let the dev pull out whatever they need.
-          await harness.prompt!(
+          // etc.). It is opaque to conformance, so we dump it and let the dev
+          // pull out whatever they need. When the harness can resolve an
+          // openable URL from the presentation, `awaitManualStep` offers a
+          // "press O to open" shortcut instead of copy/pasting it.
+          const checkoutUrl = harness.checkoutUrl?.(session.presentation) ?? null;
+          await awaitManualStep(
             [
               `Complete checkout for session ${session.id} with a test card.`,
-              `Presentation payload:`,
+              'Presentation payload:',
               JSON.stringify(session.presentation, null, 2),
-              `Press Enter when done.`,
             ].join('\n'),
+            checkoutUrl ? { openUrl: checkoutUrl } : undefined,
           );
 
           const payment = await pollForPayment(provider, customer.id, session.id);
@@ -219,9 +225,11 @@ export function registerPaymentsSemiManualSuite(
           }
           expect(payment.createdAt).toBeInstanceOf(Date);
 
-          // get round-trip.
+          // get round-trip on the normalized contract. `raw` is the provider
+          // escape hatch and is excluded — two independent reads can
+          // legitimately differ there while every normalized field agrees.
           const got = await provider.payments.get({ id: payment.id });
-          expect(got).toEqual(payment);
+          expect(withoutRaw(got as ProviderPayment)).toEqual(withoutRaw(payment));
 
           // list round-trip: every payment under this customer deep-equals get.
           const out = await provider.payments.list({ customerId: customer.id });
@@ -229,10 +237,15 @@ export function registerPaymentsSemiManualSuite(
           for (const p of out.data) {
             expectIsPayment(p);
             const single = await provider.payments.get({ id: p.id });
-            expect(single).toEqual(p);
+            expect(withoutRaw(single as ProviderPayment)).toEqual(withoutRaw(p));
           }
         },
-        POLL_TIMEOUT_MS + 30_000,
+        // Human-paced: the budget must cover fixture creation, the developer
+        // completing a hosted checkout in a browser, AND the post-completion
+        // payment poll. This test only ever runs under `INTERACTIVE=1` (and
+        // is otherwise skipped), so a generous wall-clock ceiling is correct
+        // — far better than aborting mid-payment.
+        15 * 60_000,
       );
     });
 

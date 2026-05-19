@@ -127,6 +127,18 @@ export interface ProviderTestHarness<TCheckoutPresentation = unknown> {
    */
   prompt?(message: string): Promise<string>;
   /**
+   * Map a checkout session's opaque `presentation` to a URL the developer can
+   * open in a browser to complete the flow (hosted-checkout providers). The
+   * semi-manual suite uses this to offer a "press O to open the checkout"
+   * shortcut instead of making the developer copy/paste the URL out of the
+   * printed payload.
+   *
+   * Return `null` for presentations that have no openable URL (e.g. embedded
+   * checkout that hands back only a client secret). Absent ⇒ the shortcut is
+   * not offered and the suite just prints the payload.
+   */
+  checkoutUrl?(presentation: TCheckoutPresentation): string | null;
+  /**
    * Optional best-effort hard-delete for a resource created during a test.
    * The conformance suites call this in their `afterAll` blocks before
    * falling back to the contract's soft-delete (`deactivate` / `archive`).

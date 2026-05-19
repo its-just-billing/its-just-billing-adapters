@@ -7,6 +7,7 @@ import type {
   ProviderPrice,
   ProviderProduct,
 } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import { withoutRaw } from '../../equality.js';
 import type { ProviderTestHarness } from '../../harness.js';
 import { lazySkipIf, nonNull } from '../../skip-if.js';
@@ -146,7 +147,7 @@ export function registerPaymentsSelfSetupSuite(
     if (!harness.setup?.completePayment) throw new Error('precondition');
     const provider = harness.provider;
 
-    const customer = await provider.customers.create({});
+    const customer = await createConformanceCustomer(provider);
     await harness.assertConsistency?.customer?.(customer);
     const product = await provider.products.create({ name: 'fixture', taxCategory: 'saas' });
     createdProductIds.add(product.id);

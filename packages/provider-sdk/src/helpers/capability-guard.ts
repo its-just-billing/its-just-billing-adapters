@@ -34,11 +34,7 @@ export function assertCapabilityValueSupported<T>(
  * behavior (price quantity constraints) is deliberately NOT modeled here — it
  * is the absence of an enforcement call, conditioned on the flag, not a guard.
  */
-export function assertFeatureEnabled(
-  enabled: boolean,
-  feature: string,
-  label: string,
-): void {
+export function assertFeatureEnabled(enabled: boolean, feature: string, label: string): void {
   if (enabled) return;
   throw new ProviderNotSupportedError({
     feature,

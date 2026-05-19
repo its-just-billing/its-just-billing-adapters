@@ -1,0 +1,21 @@
+{
+  "providerId": "paddle",
+  "recurrenceModel": "price",
+  "features": {
+    "priceQuantityConstraints": true,
+    "discountProductRestrictions": false,
+    "discountPriceRestrictions": false
+  },
+  "trialUnits": [
+    "day",
+    "month",
+    "week",
+    "year"
+  ],
+  "recurringIntervals": [
+    "day",
+    "month",
+    "week",
+    "year"
+  ]
+}

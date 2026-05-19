@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ProviderTestHarness } from '@its-just-billing/provider-sdk/conformance';
+import {
+  type ProviderTestHarness,
+  readlinePrompt,
+} from '@its-just-billing/provider-sdk/conformance';
 import Stripe from 'stripe';
 import {
   type StripeCheckoutPresentation,
@@ -118,6 +121,12 @@ export async function createStripeHarness(
   return {
     label: 'stripe',
     provider,
+    // Presence of `prompt` is the semi-manual opt-in signal. `readlinePrompt`
+    // is only used as the non-TTY line-mode fallback path; the interactive
+    // "press O to open" UX is owned by the SDK's `awaitManualStep`.
+    prompt: readlinePrompt,
+    checkoutUrl: (presentation) =>
+      presentation.kind === 'stripe_hosted' ? presentation.url : null,
     setup: {
       async createSubscription({ customerId, priceId, quantity = 1, trial }) {
         // Realistic flow: attach a test card and let Stripe settle the first

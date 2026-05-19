@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderValidationError } from '../../../errors/index.js';
 import type { BillingProvider, ProviderPayment } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import type { ProviderTestHarness } from '../../harness.js';
 
 /**
@@ -153,7 +154,7 @@ export function registerPaymentsAutomatedSuite(
       });
 
       it('returns [] for a freshly created customer that has no payments', async () => {
-        const c = await provider.customers.create({});
+        const c = await createConformanceCustomer(provider);
         trackCustomer(c.id);
         const out = await provider.payments.list({ customerId: c.id });
         expectIsPage<ProviderPayment>(out);

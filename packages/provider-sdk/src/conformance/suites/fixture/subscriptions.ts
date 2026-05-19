@@ -111,7 +111,14 @@ export function registerSubscriptionsFixtureSuite(
     // -------------------------------------------------------------------------
     // Scenario 2: change at_period_end to different price + cancelScheduledChange
     // -------------------------------------------------------------------------
-    lazySkipIf(() => !harness?.fixtures?.subscriptionId)(
+    // Also skipped when the provider can't defer item changes (Paddle,
+    // `deferredSubscriptionChange: false`) — there `change` only applies
+    // immediately and the reject is covered by the automated suite.
+    lazySkipIf(
+      () =>
+        !harness?.fixtures?.subscriptionId ||
+        harness?.provider?.capabilities?.deferredSubscriptionChange === false,
+    )(
       "change({when:'at_period_end', priceId}) schedules price_change and cancelScheduledChange restores it",
       async () => {
         const id = requireFixture(harness.fixtures?.subscriptionId, 'subscriptionId');
@@ -220,7 +227,12 @@ export function registerSubscriptionsFixtureSuite(
     // -------------------------------------------------------------------------
     // Scenario 3: change at_period_end quantity + cancelScheduledChange
     // -------------------------------------------------------------------------
-    lazySkipIf(() => !harness?.fixtures?.subscriptionId)(
+    // Also skipped when the provider can't defer item changes (Paddle).
+    lazySkipIf(
+      () =>
+        !harness?.fixtures?.subscriptionId ||
+        harness?.provider?.capabilities?.deferredSubscriptionChange === false,
+    )(
       "change({when:'at_period_end', quantity}) schedules price_change and cancelScheduledChange restores it",
       async () => {
         const id = requireFixture(harness.fixtures?.subscriptionId, 'subscriptionId');

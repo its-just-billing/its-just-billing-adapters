@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderConflictError, ProviderConstraintError } from '../../../errors/index.js';
 import type { BillingProvider, ProviderSubscription } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import type { ProviderTestHarness } from '../../harness.js';
 import { lazySkipIf } from '../../skip-if.js';
 
@@ -133,7 +134,7 @@ export function registerSubscriptionsSelfSetupSuite(
    */
   async function getSubscription(harness: ProviderTestHarness): Promise<ProviderSubscription> {
     if (!harness.setup?.createSubscription) throw new Error('precondition');
-    const customer = await harness.provider.customers.create({});
+    const customer = await createConformanceCustomer(harness.provider);
     await harness.assertConsistency?.customer?.(customer);
     const product = await harness.provider.products.create({
       name: 'fixture',
@@ -491,7 +492,7 @@ export function registerSubscriptionsSelfSetupSuite(
         'createSubscription({ trial: { count, unit: "day" } }) returns a trialing subscription with trialEnd set',
         async () => {
           if (!harness.setup?.createSubscription) return; // unreachable per skipIf
-          const customer = await provider.customers.create({});
+          const customer = await createConformanceCustomer(provider);
           await harness.assertConsistency?.customer?.(customer);
           const product = await provider.products.create({
             name: 'trial-fixture',

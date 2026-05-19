@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ProviderNotFoundError, ProviderValidationError } from '../../../errors/index.js';
+import {
+  ProviderNotFoundError,
+  ProviderNotSupportedError,
+  ProviderValidationError,
+} from '../../../errors/index.js';
 import type { BillingProvider, ProviderCustomer } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { lazySkipIf } from '../../skip-if.js';
 
 /**
  * Registers the subscriptions automated conformance suite. All scenarios in
@@ -38,7 +44,7 @@ export function registerSubscriptionsAutomatedSuite(
     // -------------------------------------------------------------------------
     describe('subscriptions.list', () => {
       it('returns an empty page for a fresh customer with no subscriptions', async () => {
-        const customer: ProviderCustomer = await provider.customers.create({});
+        const customer: ProviderCustomer = await createConformanceCustomer(provider);
         trackCustomer(customer.id);
         const out = await provider.subscriptions.list({ customerId: customer.id });
         expect(Array.isArray(out.data)).toBe(true);
@@ -209,6 +215,32 @@ export function registerSubscriptionsAutomatedSuite(
         expect(err).toBeInstanceOf(ProviderNotFoundError);
         expect((err as ProviderNotFoundError).status).toBe(404);
       });
+
+      // A provider that can't defer an item change must reject
+      // `when: 'at_period_end'` (capability `deferredSubscriptionChange:
+      // false`) rather than silently applying it immediately and reporting
+      // `pendingChange: null`. The reject is a pure input check, so a
+      // synthetic id is fine. Skipped for providers that DO defer (their
+      // deferred behavior is covered by the fixture/self-setup suites).
+      lazySkipIf(() => provider.capabilities.deferredSubscriptionChange !== false)(
+        "change({when:'at_period_end'}) rejects ProviderNotSupportedError when deferredSubscriptionChange is false",
+        async () => {
+          const err = await provider.subscriptions
+            .change({
+              id: 'sub_x',
+              items: [{ priceId: 'price_x' }],
+              when: 'at_period_end',
+              prorationBehavior: 'create_prorations',
+            })
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(err).toBeInstanceOf(ProviderNotSupportedError);
+          expect((err as ProviderNotSupportedError).status).toBe(422);
+          expect((err as ProviderNotSupportedError).feature).toBe('subscription.change.when');
+        },
+      );
 
       // ---- validation: id ----
       it.each([

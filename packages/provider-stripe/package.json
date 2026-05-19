@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:conformance:automated": "vitest run conformance.automated",
     "test:conformance:self-setup": "vitest run conformance.self-setup",
+    "test:conformance:semi-manual": "vitest run conformance.semi-manual",
     "profile:emit": "tsx scripts/emit-capability-profile.ts",
     "typecheck": "tsc --noEmit"
   },

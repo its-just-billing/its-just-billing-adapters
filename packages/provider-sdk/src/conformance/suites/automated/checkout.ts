@@ -13,7 +13,9 @@ import type {
   ProviderPrice,
   ProviderProduct,
 } from '../../../index.js';
+import { createConformanceCustomer } from '../../customer-fixture.js';
 import type { ProviderTestHarness } from '../../harness.js';
+import { lazySkipIf } from '../../skip-if.js';
 
 /**
  * Registers the checkout automated conformance suite. All scenarios in the
@@ -157,7 +159,7 @@ export function registerCheckoutAutomatedSuite(
       });
       createdPriceIds.add(fixturePrice.id);
 
-      fixtureCustomer = await provider.customers.create({});
+      fixtureCustomer = await createConformanceCustomer(provider);
       createdCustomerIds.add(fixtureCustomer.id);
     });
 
@@ -312,6 +314,58 @@ export function registerCheckoutAutomatedSuite(
         expect(e.feature).toBe('trial.unit');
         expect(e.value).toBe(unsupported);
       });
+
+      // Guard against advertising trial units the method always rejects: when
+      // the provider supports checkout-level trials, no advertised
+      // `trialUnits` value may come back as a trial-capability
+      // `ProviderNotSupportedError` from `checkout.createSession`. (It may
+      // still fail for unrelated reasons — e.g. a one-time fixture price in
+      // subscription mode — but not "this trial isn't supported".)
+      lazySkipIf(() => provider.capabilities.checkoutTrialSupported === false)(
+        'every advertised trialUnits value is accepted by checkout.createSession',
+        async () => {
+          for (const unit of provider.capabilities.trialUnits) {
+            const err = await provider.checkout
+              .createSession({
+                lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+                mode: 'subscription',
+                successUrl: 'https://example.com/success',
+                trial: { count: 1, unit },
+              })
+              .then(
+                () => null,
+                (e: unknown) => e,
+              );
+            if (err instanceof ProviderNotSupportedError) {
+              expect(['trial.unit', 'checkout.trial']).not.toContain(err.feature);
+            }
+          }
+        },
+      );
+
+      // Honest path for providers without a checkout-level trial mechanism
+      // (Paddle): a trial — even with an advertised unit — must reject with
+      // `ProviderNotSupportedError(feature: 'checkout.trial')`, not be
+      // silently dropped (which would hand back a trial-less subscription).
+      lazySkipIf(() => provider.capabilities.checkoutTrialSupported !== false)(
+        'checkout.createSession({trial}) rejects when checkoutTrialSupported is false',
+        async () => {
+          const [unit] = [...provider.capabilities.trialUnits];
+          const err = await provider.checkout
+            .createSession({
+              lineItems: [{ priceId: fixturePrice.id, quantity: 1 }],
+              mode: 'subscription',
+              successUrl: 'https://example.com/success',
+              trial: { count: 1, unit: unit ?? 'day' },
+            })
+            .then(
+              () => null,
+              (e: unknown) => e,
+            );
+          expect(err).toBeInstanceOf(ProviderNotSupportedError);
+          expect((err as ProviderNotSupportedError).feature).toBe('checkout.trial');
+        },
+      );
 
       it('preserves multiple lineItems in order', async () => {
         const second = await provider.prices.create({

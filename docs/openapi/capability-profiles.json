@@ -38,6 +38,26 @@
         "week",
         "year"
       ]
+    },
+    "paddle": {
+      "features": {
+        "priceQuantityConstraints": true,
+        "discountProductRestrictions": false,
+        "discountPriceRestrictions": false
+      },
+      "recurrenceModel": "price",
+      "trialUnits": [
+        "day",
+        "month",
+        "week",
+        "year"
+      ],
+      "recurringIntervals": [
+        "day",
+        "month",
+        "week",
+        "year"
+      ]
     }
   },
   "valueSetNarrowing": {
@@ -55,6 +75,12 @@
           "week"
         ],
         "mock": [
+          "day",
+          "month",
+          "week",
+          "year"
+        ],
+        "paddle": [
           "day",
           "month",
           "week",
@@ -78,6 +104,12 @@
           "year"
         ],
         "mock": [
+          "day",
+          "month",
+          "week",
+          "year"
+        ],
+        "paddle": [
           "day",
           "month",
           "week",

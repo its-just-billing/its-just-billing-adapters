@@ -677,8 +677,8 @@ export async function checkCapabilityMatrixDrift(): Promise<string[]> {
 // test keeps each committed fragment honest against live capabilities.
 // ---------------------------------------------------------------------------
 
-/** Providers expected to have emitted a profile fragment. Add 'paddle' when implemented. */
-const KNOWN_PROVIDER_IDS = ['stripe', 'mock'] as const;
+/** Providers expected to have emitted a profile fragment. */
+const KNOWN_PROVIDER_IDS = ['stripe', 'mock', 'paddle'] as const;
 
 const profilesDir = resolve(docsRoot, 'openapi', 'profiles');
 
